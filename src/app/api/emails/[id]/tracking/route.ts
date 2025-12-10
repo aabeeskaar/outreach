@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { getSubscriptionStatus } from "@/lib/subscription";
-import UAParser from "ua-parser-js";
+import { UAParser } from "ua-parser-js";
 
 // Parse user agent to extract device info
 function parseUserAgent(userAgent: string | null) {
