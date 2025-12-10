@@ -9,22 +9,46 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  password      String?
-  name          String?
-  image         String?
-  emailVerified DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  profile         Profile?
-  documents       Document[]
-  gmailConnection GmailConnection?
-  recipients      Recipient[]
-  generatedEmails GeneratedEmail[]
+  id              String           @id @default(uuid())
+  email           String           @unique
+  password        String?
+  name            String?
+  image           String?
+  emailVerified   DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   accounts        Account[]
+  documents       Document[]
+  generatedEmails GeneratedEmail[]
+  gmailConnection GmailConnection?
+  profile         Profile?
+  recipients      Recipient[]
   sessions        Session[]
+  subscription    Subscription?
+  freeEmailsUsed  Int              @default(0)
+}
+
+model Subscription {
+  id                   String             @id @default(uuid())
+  userId               String             @unique
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  stripePriceId        String?
+  status               SubscriptionStatus @default(FREE)
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum SubscriptionStatus {
+  FREE
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  UNPAID
 }
 
 model Account {
@@ -33,15 +57,14 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -51,8 +74,7 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model VerificationToken {
@@ -67,27 +89,19 @@ model Profile {
   id           String   @id @default(uuid())
   userId       String   @unique
   headline     String?
-  bio          String?  @db.Text
+  bio          String?
   skills       String[] @default([])
   interests    String[] @default([])
   education    Json     @default("[]")
   experience   Json     @default("[]")
-  goals        String?  @db.Text
+  goals        String?
   linkedinUrl  String?
   githubUrl    String?
   portfolioUrl String?
   otherLinks   Json     @default("[]")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-enum DocumentType {
-  CV
-  TRANSCRIPT
-  COVER_LETTER
-  OTHER
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Document {
@@ -96,30 +110,28 @@ model Document {
   name          String
   type          DocumentType @default(OTHER)
   filePath      String
-  extractedText String?      @db.Text
+  extractedText String?
   mimeType      String?
   size          Int?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model GmailConnection {
   id             String   @id @default(uuid())
   userId         String   @unique
-  accessToken    String   @db.Text
-  refreshToken   String   @db.Text
+  accessToken    String
+  refreshToken   String
   expiresAt      DateTime
   connectedEmail String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Recipient {
-  id              String   @id @default(uuid())
+  id              String           @id @default(uuid())
   userId          String
   name            String
   email           String
@@ -127,13 +139,63 @@ model Recipient {
   role            String?
   website         String?
   linkedinUrl     String?
-  workFocus       String?  @db.Text
-  additionalNotes String?  @db.Text
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workFocus       String?
+  additionalNotes String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   generatedEmails GeneratedEmail[]
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model GeneratedEmail {
+  id                String       @id @default(uuid())
+  userId            String
+  recipientId       String
+  subject           String
+  body              String
+  tone              EmailTone    @default(FORMAL)
+  purpose           EmailPurpose @default(OTHER)
+  attachedDocuments String[]     @default([])
+  status            EmailStatus  @default(DRAFT)
+  sentAt            DateTime?
+  errorMessage      String?
+  trackingId        String?      @unique
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  emailOpens        EmailOpen[]
+  recipient         Recipient    @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkClicks        LinkClick[]
+}
+
+model EmailOpen {
+  id        String         @id @default(uuid())
+  emailId   String
+  ipAddress String?
+  userAgent String?
+  openedAt  DateTime       @default(now())
+  email     GeneratedEmail @relation(fields: [emailId], references: [id], onDelete: Cascade)
+
+  @@index([emailId])
+}
+
+model LinkClick {
+  id          String         @id @default(uuid())
+  emailId     String
+  originalUrl String
+  ipAddress   String?
+  userAgent   String?
+  clickedAt   DateTime       @default(now())
+  email       GeneratedEmail @relation(fields: [emailId], references: [id], onDelete: Cascade)
+
+  @@index([emailId])
+}
+
+enum DocumentType {
+  CV
+  TRANSCRIPT
+  COVER_LETTER
+  OTHER
 }
 
 enum EmailTone {
@@ -156,51 +218,4 @@ enum EmailStatus {
   DRAFT
   SENT
   FAILED
-}
-
-model GeneratedEmail {
-  id                String       @id @default(uuid())
-  userId            String
-  recipientId       String
-  subject           String
-  body              String       @db.Text
-  tone              EmailTone    @default(FORMAL)
-  purpose           EmailPurpose @default(OTHER)
-  attachedDocuments String[]     @default([])
-  status            EmailStatus  @default(DRAFT)
-  sentAt            DateTime?
-  errorMessage      String?
-  trackingId        String?      @unique
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
-
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  recipient   Recipient    @relation(fields: [recipientId], references: [id], onDelete: Cascade)
-  emailOpens  EmailOpen[]
-  linkClicks  LinkClick[]
-}
-
-model EmailOpen {
-  id        String   @id @default(uuid())
-  emailId   String
-  ipAddress String?
-  userAgent String?
-  openedAt  DateTime @default(now())
-
-  email GeneratedEmail @relation(fields: [emailId], references: [id], onDelete: Cascade)
-
-  @@index([emailId])
-}
-
-model LinkClick {
-  id          String   @id @default(uuid())
-  emailId     String
-  originalUrl String
-  ipAddress   String?
-  userAgent   String?
-  clickedAt   DateTime @default(now())
-
-  email GeneratedEmail @relation(fields: [emailId], references: [id], onDelete: Cascade)
-
-  @@index([emailId])
 }

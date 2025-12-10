@@ -19,7 +19,9 @@
       "Bash(npm i:*)",
       "Bash(npx neonctl@latest init)",
       "Bash(git remote add:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nAdd OutreachAI email generation application\n\n- Add Prisma schema with User, Profile, Document, Recipient, GeneratedEmail models\n- Configure NextAuth with Google OAuth and Prisma adapter\n- Add email generation with AI (Gemini, Claude, OpenAI support)\n- Add Gmail integration for sending emails\n- Add dashboard with profile, documents, recipients, and email management\n- Configure for Neon database deployment with connection pooling\n- Update build script for Vercel deployment\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []

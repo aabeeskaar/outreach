@@ -39,6 +39,7 @@ import {
   CheckCircle2,
   Eye,
   Bot,
+  Crown,
 } from "lucide-react";
 
 interface Recipient {
@@ -80,6 +81,12 @@ function ComposePageContent() {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [emailId, setEmailId] = useState<string | null>(null);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [subscription, setSubscription] = useState<{
+    isPro: boolean;
+    freeEmailsUsed: number;
+    freeEmailsRemaining: number;
+  } | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -93,11 +100,12 @@ function ComposePageContent() {
 
   const fetchData = async () => {
     try {
-      const [recipientsRes, documentsRes, gmailRes, providersRes] = await Promise.all([
+      const [recipientsRes, documentsRes, gmailRes, providersRes, subscriptionRes] = await Promise.all([
         fetch("/api/recipients"),
         fetch("/api/documents"),
         fetch("/api/gmail/status"),
         fetch("/api/ai/providers"),
+        fetch("/api/subscription"),
       ]);
 
       if (recipientsRes.ok) {
@@ -118,6 +126,10 @@ function ComposePageContent() {
         if (data.default) {
           setAiProvider(data.default);
         }
+      }
+      if (subscriptionRes.ok) {
+        const data = await subscriptionRes.json();
+        setSubscription(data);
       }
     } catch (error) {
       console.error("Failed to fetch data:", error);
@@ -153,9 +165,18 @@ function ComposePageContent() {
         setSubject(data.subject);
         setBody(data.body);
         toast.success("Email generated!");
+        // Refresh subscription status
+        const subRes = await fetch("/api/subscription");
+        if (subRes.ok) {
+          setSubscription(await subRes.json());
+        }
       } else {
         const data = await response.json();
-        toast.error(data.error || "Failed to generate email");
+        if (data.requiresUpgrade) {
+          setShowUpgradeDialog(true);
+        } else {
+          toast.error(data.error || "Failed to generate email");
+        }
       }
     } catch (error) {
       console.error("Generate error:", error);
@@ -259,11 +280,37 @@ function ComposePageContent() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Compose Email</h2>
-        <p className="text-muted-foreground">
-          Generate and send personalized professional emails
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Compose Email</h2>
+          <p className="text-muted-foreground">
+            Generate and send personalized professional emails
+          </p>
+        </div>
+        {subscription && (
+          <div className="text-right">
+            {subscription.isPro ? (
+              <Badge className="bg-gradient-to-r from-yellow-500 to-orange-500">
+                <Crown className="h-3 w-3 mr-1" />
+                Pro
+              </Badge>
+            ) : (
+              <div className="space-y-1">
+                <Badge variant="secondary">
+                  {subscription.freeEmailsRemaining} free email remaining
+                </Badge>
+                <p className="text-xs text-muted-foreground">
+                  <button
+                    onClick={() => router.push("/pricing")}
+                    className="text-primary hover:underline"
+                  >
+                    Upgrade for unlimited
+                  </button>
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -581,6 +628,41 @@ function ComposePageContent() {
           </Card>
         </div>
       </div>
+
+      {/* Upgrade Dialog */}
+      <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Crown className="h-5 w-5 text-yellow-500" />
+              Upgrade to Pro
+            </DialogTitle>
+            <DialogDescription>
+              You&apos;ve used your free email generation. Upgrade to Pro for unlimited AI-generated emails.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-950/30 dark:to-orange-950/30 p-4 rounded-lg border">
+              <h4 className="font-semibold mb-2">Pro Plan - $10/month</h4>
+              <ul className="text-sm space-y-1 text-muted-foreground">
+                <li>• Unlimited AI-generated emails</li>
+                <li>• All AI providers (Gemini, Claude)</li>
+                <li>• Advanced email tracking</li>
+                <li>• Priority support</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUpgradeDialog(false)}>
+              Maybe Later
+            </Button>
+            <Button onClick={() => router.push("/pricing")} className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600">
+              <Crown className="mr-2 h-4 w-4" />
+              Upgrade Now
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Preview Dialog */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>

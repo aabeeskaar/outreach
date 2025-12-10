@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-
+import { canGenerateEmail, incrementEmailUsage } from "@/lib/subscription";
 import { generateEmail, getUserContext, getRecipientContext, getAvailableProviders, AIProvider } from "@/lib/ai";
 
 // Simple in-memory rate limiting
@@ -38,6 +38,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Rate limit exceeded. Please wait a minute before generating more emails." },
         { status: 429 }
+      );
+    }
+
+    // Check subscription/free tier limit
+    const subscriptionCheck = await canGenerateEmail(session.user.id);
+    if (!subscriptionCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: subscriptionCheck.reason,
+          requiresUpgrade: true,
+        },
+        { status: 403 }
       );
     }
 
@@ -103,6 +115,9 @@ export async function POST(request: NextRequest) {
       additionalContext: data.additionalContext,
       provider,
     });
+
+    // Increment usage for free tier users
+    await incrementEmailUsage(session.user.id);
 
     return NextResponse.json(result);
   } catch (error) {
