@@ -406,6 +406,14 @@ function ComposePageContent() {
                         </div>
                       </SelectItem>
                     )}
+                    {availableProviders.includes("groq") && (
+                      <SelectItem value="groq">
+                        <div className="flex items-center gap-2">
+                          <span>Groq (Llama 3.1)</span>
+                          <Badge variant="secondary" className="text-xs">Free</Badge>
+                        </div>
+                      </SelectItem>
+                    )}
                     {availableProviders.includes("claude") && (
                       <SelectItem value="claude">
                         <div className="flex items-center gap-2">

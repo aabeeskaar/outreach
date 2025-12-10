@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import OpenAI from "openai";
+import Groq from "groq-sdk";
 import prisma from "./prisma";
 
 // Initialize AI clients
@@ -16,7 +17,11 @@ const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
 
-export type AIProvider = "claude" | "gemini" | "chatgpt";
+const groq = process.env.GROQ_API_KEY
+  ? new Groq({ apiKey: process.env.GROQ_API_KEY })
+  : null;
+
+export type AIProvider = "claude" | "gemini" | "chatgpt" | "groq";
 
 interface UserContext {
   name: string | null;
@@ -317,6 +322,35 @@ async function generateWithChatGPT(prompt: string): Promise<{ subject: string; b
   return parseAIResponse(content);
 }
 
+async function generateWithGroq(prompt: string): Promise<{ subject: string; body: string }> {
+  if (!groq) {
+    throw new Error("Groq API key not configured");
+  }
+
+  const response = await groq.chat.completions.create({
+    model: "llama-3.1-70b-versatile",
+    messages: [
+      {
+        role: "system",
+        content: SYSTEM_PROMPT,
+      },
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
+    max_tokens: 1500,
+    temperature: 0.7,
+  });
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) {
+    throw new Error("No response from Groq");
+  }
+
+  return parseAIResponse(content);
+}
+
 function parseAIResponse(text: string): { subject: string; body: string } {
   // Parse JSON response
   const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -347,6 +381,8 @@ export async function generateEmail(params: GenerateEmailParams): Promise<{
     return generateWithClaude(prompt);
   } else if (provider === "chatgpt") {
     return generateWithChatGPT(prompt);
+  } else if (provider === "groq") {
+    return generateWithGroq(prompt);
   } else {
     return generateWithGemini(prompt);
   }
@@ -357,6 +393,10 @@ export function getAvailableProviders(): AIProvider[] {
 
   if (process.env.GOOGLE_GEMINI_API_KEY) {
     providers.push("gemini");
+  }
+
+  if (process.env.GROQ_API_KEY) {
+    providers.push("groq");
   }
 
   if (process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== "your-anthropic-api-key") {
