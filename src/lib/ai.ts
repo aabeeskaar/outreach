@@ -352,11 +352,18 @@ async function generateWithGroq(prompt: string): Promise<{ subject: string; body
 }
 
 function parseAIResponse(text: string): { subject: string; body: string } {
+  console.log("AI Response to parse:", text.slice(0, 1000));
+
   try {
+    // Clean the text - remove markdown code blocks if present
+    let cleanText = text
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
+
     // Try to find and parse JSON response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      // Clean up the JSON string - handle common issues
       let jsonStr = jsonMatch[0];
 
       // Try to parse as-is first
@@ -365,48 +372,115 @@ function parseAIResponse(text: string): { subject: string; body: string } {
         if (result.subject && result.body) {
           return { subject: result.subject, body: result.body };
         }
-      } catch {
-        // Continue to fallback parsing
+      } catch (e) {
+        console.log("Direct JSON parse failed:", e);
+      }
+
+      // Try to fix common JSON issues
+      try {
+        // Replace unescaped newlines in strings
+        const fixedJson = jsonStr
+          .replace(/\n/g, '\\n')
+          .replace(/\r/g, '\\r')
+          .replace(/\t/g, '\\t');
+        const result = JSON.parse(fixedJson);
+        if (result.subject && result.body) {
+          return {
+            subject: result.subject,
+            body: result.body.replace(/\\n/g, '\n')
+          };
+        }
+      } catch (e) {
+        console.log("Fixed JSON parse failed:", e);
       }
 
       // Try to extract subject and body using regex
       const subjectMatch = jsonStr.match(/"subject"\s*:\s*"([^"]+)"/);
-      const bodyMatch = jsonStr.match(/"body"\s*:\s*"([\s\S]*?)"\s*\}$/);
+      const bodyMatch = jsonStr.match(/"body"\s*:\s*"([\s\S]*?)(?:"\s*\}|"$)/);
 
-      if (subjectMatch && bodyMatch) {
-        return {
-          subject: subjectMatch[1],
-          body: bodyMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"'),
-        };
-      }
-    }
-
-    // Fallback: Try to extract subject and body from plain text
-    const lines = text.split('\n');
-    let subject = '';
-    let body = '';
-    let inBody = false;
-
-    for (const line of lines) {
-      if (line.toLowerCase().includes('subject:')) {
-        subject = line.replace(/^.*subject:\s*/i, '').replace(/['"]/g, '').trim();
-      } else if (line.toLowerCase().includes('body:') || inBody) {
-        inBody = true;
-        if (line.toLowerCase().includes('body:')) {
-          body = line.replace(/^.*body:\s*/i, '').replace(/^['"]|['"]$/g, '');
+      if (subjectMatch) {
+        let bodyContent = '';
+        if (bodyMatch) {
+          bodyContent = bodyMatch[1];
         } else {
-          body += (body ? '\n' : '') + line;
+          // Try to get everything after "body": "
+          const bodyStart = jsonStr.indexOf('"body"');
+          if (bodyStart !== -1) {
+            const afterBody = jsonStr.slice(bodyStart);
+            const contentMatch = afterBody.match(/"body"\s*:\s*"([\s\S]*)$/);
+            if (contentMatch) {
+              bodyContent = contentMatch[1].replace(/"\s*\}\s*$/, '');
+            }
+          }
+        }
+
+        if (bodyContent) {
+          return {
+            subject: subjectMatch[1],
+            body: bodyContent
+              .replace(/\\n/g, '\n')
+              .replace(/\\"/g, '"')
+              .replace(/\\t/g, '\t')
+              .trim(),
+          };
         }
       }
     }
 
+    // Fallback: Try to extract from markdown or plain text
+    let subject = '';
+    let body = '';
+
+    // Look for Subject: pattern
+    const subjectPatterns = [
+      /subject[:\s]*["']?([^"'\n]+)["']?/i,
+      /\*\*subject\*\*[:\s]*["']?([^"'\n]+)["']?/i,
+    ];
+
+    for (const pattern of subjectPatterns) {
+      const match = cleanText.match(pattern);
+      if (match) {
+        subject = match[1].trim();
+        break;
+      }
+    }
+
+    // Look for Body: pattern or Dear/Hi greeting
+    const bodyPatterns = [
+      /body[:\s]*["']?([\s\S]+)$/i,
+      /\*\*body\*\*[:\s]*["']?([\s\S]+)$/i,
+      /(Dear\s+[\s\S]+)/i,
+      /(Hi\s+[\s\S]+)/i,
+      /(Hello\s+[\s\S]+)/i,
+    ];
+
+    for (const pattern of bodyPatterns) {
+      const match = cleanText.match(pattern);
+      if (match) {
+        body = match[1]
+          .replace(/^["']|["']$/g, '')
+          .replace(/\}\s*$/, '')
+          .trim();
+        break;
+      }
+    }
+
     if (subject && body) {
-      return { subject, body: body.trim() };
+      return { subject, body };
+    }
+
+    // Last resort: use first line as subject, rest as body
+    const lines = cleanText.split('\n').filter(l => l.trim());
+    if (lines.length >= 2) {
+      return {
+        subject: lines[0].replace(/^["'{}\[\]]+|["'{}\[\]]+$/g, '').slice(0, 100),
+        body: lines.slice(1).join('\n').replace(/^["'{}\[\]]+|["'{}\[\]]+$/g, ''),
+      };
     }
 
     throw new Error("Could not parse AI response");
   } catch (error) {
-    console.error("Parse error:", error, "Original text:", text.slice(0, 500));
+    console.error("Parse error:", error, "Original text:", text);
     throw new Error("Failed to parse AI response. Please try again.");
   }
 }
