@@ -13,6 +13,7 @@ import {
   Settings,
   Mail,
   LogOut,
+  Crown,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ const navigation = [
   { name: "Compose", href: "/compose", icon: PenSquare },
   { name: "History", href: "/history", icon: History },
   { name: "Settings", href: "/settings", icon: Settings },
+  { name: "Upgrade", href: "/pricing", icon: Crown, highlight: true },
 ];
 
 export function Sidebar() {
@@ -43,6 +45,7 @@ export function Sidebar() {
       <nav className="flex-1 space-y-1 px-3 py-4">
         {navigation.map((item) => {
           const isActive = pathname === item.href;
+          const isHighlight = 'highlight' in item && item.highlight;
           return (
             <Link
               key={item.name}
@@ -51,10 +54,12 @@ export function Sidebar() {
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 isActive
                   ? "bg-primary text-primary-foreground"
+                  : isHighlight
+                  ? "bg-gradient-to-r from-yellow-500/10 to-orange-500/10 text-yellow-600 dark:text-yellow-400 hover:from-yellow-500/20 hover:to-orange-500/20"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              <item.icon className="h-4 w-4" />
+              <item.icon className={cn("h-4 w-4", isHighlight && "text-yellow-500")} />
               {item.name}
             </Link>
           );
