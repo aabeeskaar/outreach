@@ -29,7 +29,10 @@ export async function POST(req: NextRequest) {
         if (userId && session.subscription) {
           const subscriptionData = await stripe.subscriptions.retrieve(
             session.subscription as string
-          ) as Stripe.Subscription;
+          );
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const subAny = subscriptionData as any;
 
           await prisma.subscription.upsert({
             where: { userId },
@@ -39,16 +42,16 @@ export async function POST(req: NextRequest) {
               stripeSubscriptionId: subscriptionData.id,
               stripePriceId: subscriptionData.items.data[0].price.id,
               status: "ACTIVE",
-              currentPeriodStart: new Date(subscriptionData.current_period_start * 1000),
-              currentPeriodEnd: new Date(subscriptionData.current_period_end * 1000),
+              currentPeriodStart: new Date(subAny.current_period_start * 1000),
+              currentPeriodEnd: new Date(subAny.current_period_end * 1000),
             },
             update: {
               stripeCustomerId: session.customer as string,
               stripeSubscriptionId: subscriptionData.id,
               stripePriceId: subscriptionData.items.data[0].price.id,
               status: "ACTIVE",
-              currentPeriodStart: new Date(subscriptionData.current_period_start * 1000),
-              currentPeriodEnd: new Date(subscriptionData.current_period_end * 1000),
+              currentPeriodStart: new Date(subAny.current_period_start * 1000),
+              currentPeriodEnd: new Date(subAny.current_period_end * 1000),
             },
           });
         }
@@ -57,6 +60,8 @@ export async function POST(req: NextRequest) {
 
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const subUpdated = subscription as any;
 
         await prisma.subscription.updateMany({
           where: { stripeSubscriptionId: subscription.id },
@@ -65,8 +70,8 @@ export async function POST(req: NextRequest) {
                    subscription.status === "canceled" ? "CANCELED" :
                    subscription.status === "past_due" ? "PAST_DUE" :
                    subscription.status === "unpaid" ? "UNPAID" : "FREE",
-            currentPeriodStart: new Date(subscription.current_period_start * 1000),
-            currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+            currentPeriodStart: new Date(subUpdated.current_period_start * 1000),
+            currentPeriodEnd: new Date(subUpdated.current_period_end * 1000),
             cancelAtPeriodEnd: subscription.cancel_at_period_end,
           },
         });
