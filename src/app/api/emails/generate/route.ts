@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate AI provider
-    const validProviders: AIProvider[] = ["claude", "gemini"];
+    const validProviders: AIProvider[] = ["claude", "gemini", "chatgpt"];
     const provider: AIProvider = validProviders.includes(data.provider) ? data.provider : "gemini";
 
     // Check if provider is available
