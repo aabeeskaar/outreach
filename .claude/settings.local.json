@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app:*)",
+      "Bash(npx shadcn@latest init -y)",
+      "Bash(npx shadcn@latest add button card input label select textarea dialog dropdown-menu avatar progress separator switch tabs tooltip badge form popover checkbox scroll-area sheet skeleton table alert sonner -y)",
+      "Bash(npx prisma init)",
+      "Bash(npm install:*)",
+      "Bash(cat:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npm run build:*)",
+      "Bash(find:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm run db:push:*)",
+      "Bash(taskkill:*)",
+      "Bash(npx prisma db push:*)",
+      "Bash(curl:*)",
+      "Bash(npm i:*)",
+      "Bash(npx neonctl@latest init)",
+      "Bash(git remote add:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
