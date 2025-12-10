@@ -14,6 +14,7 @@ import {
   Mail,
   LogOut,
   Crown,
+  BarChart3,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ const navigation = [
   { name: "Recipients", href: "/recipients", icon: Users },
   { name: "Compose", href: "/compose", icon: PenSquare },
   { name: "History", href: "/history", icon: History },
+  { name: "Analytics", href: "/analytics", icon: BarChart3 },
   { name: "Settings", href: "/settings", icon: Settings },
   { name: "Upgrade", href: "/pricing", icon: Crown, highlight: true },
 ];
