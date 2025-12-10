@@ -352,22 +352,63 @@ async function generateWithGroq(prompt: string): Promise<{ subject: string; body
 }
 
 function parseAIResponse(text: string): { subject: string; body: string } {
-  // Parse JSON response
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error("Failed to parse AI response as JSON");
+  try {
+    // Try to find and parse JSON response
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      // Clean up the JSON string - handle common issues
+      let jsonStr = jsonMatch[0];
+
+      // Try to parse as-is first
+      try {
+        const result = JSON.parse(jsonStr);
+        if (result.subject && result.body) {
+          return { subject: result.subject, body: result.body };
+        }
+      } catch {
+        // Continue to fallback parsing
+      }
+
+      // Try to extract subject and body using regex
+      const subjectMatch = jsonStr.match(/"subject"\s*:\s*"([^"]+)"/);
+      const bodyMatch = jsonStr.match(/"body"\s*:\s*"([\s\S]*?)"\s*\}$/);
+
+      if (subjectMatch && bodyMatch) {
+        return {
+          subject: subjectMatch[1],
+          body: bodyMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"'),
+        };
+      }
+    }
+
+    // Fallback: Try to extract subject and body from plain text
+    const lines = text.split('\n');
+    let subject = '';
+    let body = '';
+    let inBody = false;
+
+    for (const line of lines) {
+      if (line.toLowerCase().includes('subject:')) {
+        subject = line.replace(/^.*subject:\s*/i, '').replace(/['"]/g, '').trim();
+      } else if (line.toLowerCase().includes('body:') || inBody) {
+        inBody = true;
+        if (line.toLowerCase().includes('body:')) {
+          body = line.replace(/^.*body:\s*/i, '').replace(/^['"]|['"]$/g, '');
+        } else {
+          body += (body ? '\n' : '') + line;
+        }
+      }
+    }
+
+    if (subject && body) {
+      return { subject, body: body.trim() };
+    }
+
+    throw new Error("Could not parse AI response");
+  } catch (error) {
+    console.error("Parse error:", error, "Original text:", text.slice(0, 500));
+    throw new Error("Failed to parse AI response. Please try again.");
   }
-
-  const result = JSON.parse(jsonMatch[0]);
-
-  if (!result.subject || !result.body) {
-    throw new Error("AI response missing required fields");
-  }
-
-  return {
-    subject: result.subject,
-    body: result.body,
-  };
 }
 
 export async function generateEmail(params: GenerateEmailParams): Promise<{
