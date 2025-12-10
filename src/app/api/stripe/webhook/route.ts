@@ -27,28 +27,28 @@ export async function POST(req: NextRequest) {
         const userId = session.metadata?.userId;
 
         if (userId && session.subscription) {
-          const subscription = await stripe.subscriptions.retrieve(
+          const subscriptionData = await stripe.subscriptions.retrieve(
             session.subscription as string
-          );
+          ) as Stripe.Subscription;
 
           await prisma.subscription.upsert({
             where: { userId },
             create: {
               userId,
               stripeCustomerId: session.customer as string,
-              stripeSubscriptionId: subscription.id,
-              stripePriceId: subscription.items.data[0].price.id,
+              stripeSubscriptionId: subscriptionData.id,
+              stripePriceId: subscriptionData.items.data[0].price.id,
               status: "ACTIVE",
-              currentPeriodStart: new Date(subscription.current_period_start * 1000),
-              currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+              currentPeriodStart: new Date(subscriptionData.current_period_start * 1000),
+              currentPeriodEnd: new Date(subscriptionData.current_period_end * 1000),
             },
             update: {
               stripeCustomerId: session.customer as string,
-              stripeSubscriptionId: subscription.id,
-              stripePriceId: subscription.items.data[0].price.id,
+              stripeSubscriptionId: subscriptionData.id,
+              stripePriceId: subscriptionData.items.data[0].price.id,
               status: "ACTIVE",
-              currentPeriodStart: new Date(subscription.current_period_start * 1000),
-              currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+              currentPeriodStart: new Date(subscriptionData.current_period_start * 1000),
+              currentPeriodEnd: new Date(subscriptionData.current_period_end * 1000),
             },
           });
         }
