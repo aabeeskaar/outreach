@@ -148,6 +148,29 @@ Write only the email body, nothing else.`;
     });
   } catch (error) {
     console.error("Generate reply error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+
+    // Return more specific error messages
+    if (error instanceof Error) {
+      if (error.message.includes("API key not configured")) {
+        return NextResponse.json(
+          { error: "AI provider is not configured. Please contact administrator." },
+          { status: 503 }
+        );
+      }
+      if (error.message.includes("No Gmail connection")) {
+        return NextResponse.json(
+          { error: "Gmail is not connected. Please reconnect in settings." },
+          { status: 400 }
+        );
+      }
+      if (error.message.includes("refresh")) {
+        return NextResponse.json(
+          { error: "Gmail session expired. Please reconnect Gmail in settings." },
+          { status: 401 }
+        );
+      }
+    }
+
+    return NextResponse.json({ error: "Failed to generate reply. Please try again." }, { status: 500 });
   }
 }
