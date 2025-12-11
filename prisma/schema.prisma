@@ -16,6 +16,7 @@ model User {
   image           String?
   emailVerified   DateTime?
   role            UserRole         @default(USER)
+  status          UserStatus       @default(ACTIVE)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   accounts        Account[]
@@ -29,6 +30,14 @@ model User {
   freeEmailsUsed  Int              @default(0)
   feedbacks       Feedback[]
   supportTickets  SupportTicket[]
+  auditLogs       AuditLog[]
+  promoCodeUses   PromoCodeUse[]
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
 }
 
 enum UserRole {
@@ -308,4 +317,179 @@ model DailyStats {
   updatedAt     DateTime @updatedAt
 
   @@index([date])
+}
+
+// Payment tracking
+model PaymentTransaction {
+  id              String        @id @default(uuid())
+  userId          String
+  provider        PaymentProvider
+  providerTxId    String?       @unique
+  amount          Float
+  currency        String        @default("USD")
+  status          PaymentStatus
+  type            PaymentType
+  description     String?
+  metadata        Json?
+  createdAt       DateTime      @default(now())
+
+  @@index([userId])
+  @@index([provider])
+  @@index([createdAt])
+}
+
+enum PaymentProvider {
+  STRIPE
+  PAYPAL
+  MANUAL
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentType {
+  SUBSCRIPTION
+  ONE_TIME
+  REFUND
+}
+
+// Promo codes
+model PromoCode {
+  id              String         @id @default(uuid())
+  code            String         @unique
+  description     String?
+  discountType    DiscountType
+  discountValue   Float
+  maxUses         Int?
+  usedCount       Int            @default(0)
+  validFrom       DateTime       @default(now())
+  validUntil      DateTime?
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  uses            PromoCodeUse[]
+}
+
+model PromoCodeUse {
+  id          String    @id @default(uuid())
+  promoCodeId String
+  userId      String
+  usedAt      DateTime  @default(now())
+  promoCode   PromoCode @relation(fields: [promoCodeId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
+
+  @@unique([promoCodeId, userId])
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FREE_TRIAL_DAYS
+}
+
+// Announcements
+model Announcement {
+  id          String           @id @default(uuid())
+  title       String
+  message     String
+  type        AnnouncementType @default(INFO)
+  isActive    Boolean          @default(true)
+  showFrom    DateTime         @default(now())
+  showUntil   DateTime?
+  targetRoles UserRole[]       @default([USER])
+  dismissible Boolean          @default(true)
+  link        String?
+  linkText    String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+enum AnnouncementType {
+  INFO
+  WARNING
+  SUCCESS
+  ERROR
+}
+
+// App Settings
+model AppSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  type      String   @default("string")
+  category  String   @default("general")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Audit Logs
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String?
+  oldValue    Json?
+  newValue    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType])
+  @@index([createdAt])
+}
+
+// Email Broadcasts
+model EmailBroadcast {
+  id          String              @id @default(uuid())
+  subject     String
+  body        String
+  targetType  BroadcastTargetType
+  targetValue String?
+  status      BroadcastStatus     @default(DRAFT)
+  sentCount   Int                 @default(0)
+  failedCount Int                 @default(0)
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+enum BroadcastTargetType {
+  ALL_USERS
+  PRO_USERS
+  FREE_USERS
+  SPECIFIC_USERS
+}
+
+enum BroadcastStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  FAILED
+}
+
+// AI Usage tracking
+model AIUsage {
+  id        String   @id @default(uuid())
+  userId    String
+  provider  String
+  model     String?
+  tokens    Int?
+  cost      Float?
+  success   Boolean  @default(true)
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([provider])
+  @@index([createdAt])
 }

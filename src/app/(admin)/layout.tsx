@@ -12,6 +12,14 @@ import {
   ArrowLeft,
   Shield,
   BarChart3,
+  CreditCard,
+  Mail,
+  Bot,
+  Ticket,
+  Megaphone,
+  Settings,
+  ScrollText,
+  Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -64,8 +72,16 @@ export default function AdminLayout({
     { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
     { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
     { href: "/admin/users", label: "Users", icon: Users },
+    { href: "/admin/payments", label: "Payments", icon: CreditCard },
+    { href: "/admin/emails", label: "Email Logs", icon: Mail },
+    { href: "/admin/ai-usage", label: "AI Usage", icon: Bot },
+    { href: "/admin/promo-codes", label: "Promo Codes", icon: Ticket },
+    { href: "/admin/announcements", label: "Announcements", icon: Megaphone },
+    { href: "/admin/broadcasts", label: "Broadcasts", icon: Send },
     { href: "/admin/feedback", label: "Feedback", icon: MessageSquare },
     { href: "/admin/support", label: "Support", icon: HeadphonesIcon },
+    { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
+    { href: "/admin/settings", label: "Settings", icon: Settings },
   ];
 
   return (
