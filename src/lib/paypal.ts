@@ -31,8 +31,19 @@ function getOrdersController(): OrdersController {
   return ordersControllerInstance;
 }
 
-export async function createPayPalOrder(userId: string) {
+export async function createPayPalOrder(
+  userId: string,
+  options?: {
+    promoCode?: string;
+    discountAmount?: number;
+  }
+) {
   try {
+    // Calculate final price (base $10 minus discount)
+    const basePrice = 10.0;
+    const discount = options?.discountAmount || 0;
+    const finalPrice = Math.max(0.01, basePrice - discount).toFixed(2);
+
     const response = await getOrdersController().createOrder({
       body: {
         intent: CheckoutPaymentIntent.Capture,
@@ -40,10 +51,16 @@ export async function createPayPalOrder(userId: string) {
           {
             amount: {
               currencyCode: "USD",
-              value: "10.00",
+              value: finalPrice,
+              breakdown: discount > 0 ? {
+                itemTotal: { currencyCode: "USD", value: basePrice.toFixed(2) },
+                discount: { currencyCode: "USD", value: discount.toFixed(2) },
+              } : undefined,
             },
-            description: "OutreachAI Pro - Monthly Subscription",
-            customId: userId,
+            description: options?.promoCode
+              ? `OutreachAI Pro - Monthly (Promo: ${options.promoCode})`
+              : "OutreachAI Pro - Monthly Subscription",
+            customId: JSON.stringify({ userId, promoCode: options?.promoCode || null }),
           },
         ],
         paymentSource: {

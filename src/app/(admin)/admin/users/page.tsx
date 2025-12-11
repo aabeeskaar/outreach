@@ -20,7 +20,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Search, ChevronLeft, ChevronRight, Crown, Mail } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Crown, Mail, Star, StarOff } from "lucide-react";
+import { toast } from "sonner";
 
 interface User {
   id: string;
@@ -56,6 +57,7 @@ export default function AdminUsersPage() {
   });
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -87,6 +89,37 @@ export default function AdminUsersPage() {
     e.preventDefault();
     setPagination((prev) => ({ ...prev, page: 1 }));
     fetchUsers();
+  };
+
+  const toggleProStatus = async (user: User) => {
+    const isPro = user.subscription?.status === "ACTIVE";
+    const action = isPro ? "revoke_pro" : "grant_pro";
+    const confirmMsg = isPro
+      ? `Remove Pro status from ${user.email}?`
+      : `Grant Pro status to ${user.email}? (1 year)`;
+
+    if (!confirm(confirmMsg)) return;
+
+    setUpdating(user.id);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, action }),
+      });
+
+      if (res.ok) {
+        toast.success(isPro ? "Pro status revoked" : "Pro status granted");
+        fetchUsers();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Failed to update user");
+      }
+    } catch {
+      toast.error("Failed to update user");
+    } finally {
+      setUpdating(null);
+    }
   };
 
   const getStatusBadge = (user: User) => {
@@ -150,6 +183,7 @@ export default function AdminUsersPage() {
                     <TableHead>Emails Generated</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Joined</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -190,6 +224,21 @@ export default function AdminUsersPage() {
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {formatDate(user.createdAt)}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => toggleProStatus(user)}
+                          disabled={updating === user.id}
+                          title={user.subscription?.status === "ACTIVE" ? "Revoke Pro" : "Grant Pro"}
+                        >
+                          {user.subscription?.status === "ACTIVE" ? (
+                            <StarOff className="h-4 w-4 text-yellow-500" />
+                          ) : (
+                            <Star className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}

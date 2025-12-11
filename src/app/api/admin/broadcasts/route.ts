@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin";
 import { createAuditLog } from "@/lib/audit";
+import { sendBulkEmails, isEmailConfigured } from "@/lib/email";
 import prisma from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
@@ -16,6 +17,9 @@ export async function GET(request: NextRequest) {
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * limit,
         take: limit,
+        include: {
+          sender: { select: { name: true, email: true } },
+        },
       }),
       prisma.emailBroadcast.count(),
     ]);
@@ -28,6 +32,7 @@ export async function GET(request: NextRequest) {
         total,
         totalPages: Math.ceil(total / limit),
       },
+      emailConfigured: isEmailConfigured(),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unauthorized";
@@ -55,6 +60,7 @@ export async function POST(request: NextRequest) {
         body: emailBody,
         targetType,
         targetValue,
+        senderId: session.user?.id,
         scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
         status: scheduledAt ? "SCHEDULED" : "DRAFT",
       },
@@ -85,6 +91,14 @@ export async function PATCH(request: NextRequest) {
     const { id, action: broadcastAction, ...data } = body;
 
     if (broadcastAction === "send") {
+      // Check if email is configured
+      if (!isEmailConfigured()) {
+        return NextResponse.json(
+          { error: "Email is not configured. Set SMTP_* or GMAIL_* environment variables." },
+          { status: 400 }
+        );
+      }
+
       // Get target users
       const broadcast = await prisma.emailBroadcast.findUnique({
         where: { id },
@@ -109,6 +123,11 @@ export async function PATCH(request: NextRequest) {
             ],
           };
           break;
+        case "ADMINS":
+          userFilter = {
+            role: "ADMIN",
+          };
+          break;
         case "SPECIFIC_USERS":
           if (broadcast.targetValue) {
             userFilter = {
@@ -116,14 +135,19 @@ export async function PATCH(request: NextRequest) {
             };
           }
           break;
+        // ALL_USERS - no filter needed
       }
 
       const users = await prisma.user.findMany({
         where: userFilter,
-        select: { id: true, email: true },
+        select: { id: true, email: true, name: true },
       });
 
-      // Update broadcast status
+      if (users.length === 0) {
+        return NextResponse.json({ error: "No users match the target criteria" }, { status: 400 });
+      }
+
+      // Update broadcast status to SENDING
       await prisma.emailBroadcast.update({
         where: { id },
         data: {
@@ -132,13 +156,21 @@ export async function PATCH(request: NextRequest) {
         },
       });
 
-      // In a real app, you'd queue these emails
-      // For now, we'll just update the count
+      // Actually send emails
+      const recipients = users.map((u) => ({ email: u.email, name: u.name || undefined }));
+      const { sent, failed } = await sendBulkEmails(
+        recipients,
+        broadcast.subject,
+        broadcast.body
+      );
+
+      // Update broadcast with results
       await prisma.emailBroadcast.update({
         where: { id },
         data: {
-          status: "SENT",
-          sentCount: users.length,
+          status: failed === users.length ? "FAILED" : "SENT",
+          sentCount: sent,
+          failedCount: failed,
         },
       });
 
@@ -147,12 +179,14 @@ export async function PATCH(request: NextRequest) {
         action: "SEND_BROADCAST",
         entityType: "EmailBroadcast",
         entityId: id,
-        newValue: { recipientCount: users.length },
+        newValue: { recipientCount: users.length, sent, failed },
       });
 
       return NextResponse.json({
         success: true,
-        sentTo: users.length,
+        sentTo: sent,
+        failed,
+        total: users.length,
       });
     }
 

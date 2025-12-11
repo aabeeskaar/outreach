@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const userId = session.metadata?.userId;
+        const promoCode = session.metadata?.promoCode;
 
         if (userId && session.subscription) {
           const subscriptionData = await stripe.subscriptions.retrieve(
@@ -54,6 +55,40 @@ export async function POST(req: NextRequest) {
               currentPeriodEnd: new Date(subAny.current_period_end * 1000),
             },
           });
+
+          // Record payment transaction
+          const amountPaid = session.amount_total ? session.amount_total / 100 : 10;
+          await prisma.paymentTransaction.create({
+            data: {
+              userId,
+              provider: "STRIPE",
+              providerTxId: session.id,
+              amount: amountPaid,
+              currency: session.currency?.toUpperCase() || "USD",
+              status: "COMPLETED",
+              type: "SUBSCRIPTION",
+              metadata: {
+                subscriptionId: subscriptionData.id,
+                customerId: typeof session.customer === "string" ? session.customer : null,
+                promoCode: promoCode || null,
+              },
+            },
+          });
+
+          // Record promo code usage if applicable
+          if (promoCode) {
+            const promo = await prisma.promoCode.findUnique({
+              where: { code: promoCode.toUpperCase() },
+            });
+            if (promo) {
+              await prisma.promoCodeUse.create({
+                data: {
+                  promoCodeId: promo.id,
+                  userId,
+                },
+              });
+            }
+          }
         }
         break;
       }

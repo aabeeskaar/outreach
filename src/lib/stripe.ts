@@ -49,8 +49,19 @@ export const PLANS = {
   },
 };
 
-export async function createCheckoutSession(userId: string, email: string) {
-  const session = await stripe.checkout.sessions.create({
+export async function createCheckoutSession(
+  userId: string,
+  email: string,
+  options?: {
+    promoCode?: string;
+    discountPercent?: number;
+    trialDays?: number;
+  }
+) {
+  const stripeClient = getStripe();
+
+  // Build session options
+  const sessionOptions: Stripe.Checkout.SessionCreateParams = {
     customer_email: email,
     mode: "subscription",
     payment_method_types: ["card"],
@@ -64,8 +75,29 @@ export async function createCheckoutSession(userId: string, email: string) {
     cancel_url: `${process.env.NEXTAUTH_URL}/pricing?canceled=true`,
     metadata: {
       userId,
+      promoCode: options?.promoCode || "",
     },
-  });
+  };
+
+  // Apply discount if provided
+  if (options?.discountPercent && options.discountPercent > 0) {
+    // Create a coupon for this discount
+    const coupon = await stripeClient.coupons.create({
+      percent_off: options.discountPercent,
+      duration: "once",
+      name: options.promoCode ? `Promo: ${options.promoCode}` : "Discount",
+    });
+    sessionOptions.discounts = [{ coupon: coupon.id }];
+  }
+
+  // Apply trial days if provided
+  if (options?.trialDays && options.trialDays > 0) {
+    sessionOptions.subscription_data = {
+      trial_period_days: options.trialDays,
+    };
+  }
+
+  const session = await stripe.checkout.sessions.create(sessionOptions);
 
   return session;
 }

@@ -16,15 +16,15 @@ import { toast } from "sonner";
 interface Broadcast {
   id: string;
   subject: string;
-  content: string;
+  body: string;
   targetType: string;
   status: string;
   sentCount: number;
   failedCount: number;
-  scheduledFor: string | null;
+  scheduledAt: string | null;
   sentAt: string | null;
   createdAt: string;
-  sender: { name: string | null; email: string };
+  sender: { name: string | null; email: string } | null;
 }
 
 export default function BroadcastsPage() {
@@ -65,13 +65,15 @@ export default function BroadcastsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...form,
-          scheduledFor: form.scheduledFor || null,
+          subject: form.subject,
+          body: form.content,
+          targetType: form.targetType,
+          scheduledAt: form.scheduledFor || null,
         }),
       });
       if (res.ok) {
         const data = await res.json();
-        toast.success(data.broadcast.status === "SENT" ? "Broadcast sent!" : "Broadcast scheduled");
+        toast.success(data.status === "SCHEDULED" ? "Broadcast scheduled" : "Broadcast created");
         setShowCreate(false);
         setForm({ subject: "", content: "", targetType: "ALL_USERS", scheduledFor: "" });
         fetchBroadcasts();
@@ -96,8 +98,31 @@ export default function BroadcastsPage() {
       });
       toast.success("Deleted");
       fetchBroadcasts();
-    } catch (error) {
+    } catch {
       toast.error("Failed to delete");
+    }
+  };
+
+  const handleSend = async (id: string) => {
+    if (!confirm("Send this broadcast to all target users?")) return;
+    setSending(true);
+    try {
+      const res = await fetch("/api/admin/broadcasts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action: "send" }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`Broadcast sent to ${data.sentTo} users${data.failed > 0 ? ` (${data.failed} failed)` : ""}`);
+        fetchBroadcasts();
+      } else {
+        toast.error(data.error || "Failed to send");
+      }
+    } catch {
+      toast.error("Failed to send broadcast");
+    } finally {
+      setSending(false);
     }
   };
 
@@ -183,14 +208,19 @@ export default function BroadcastsPage() {
                       ) : "—"}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {b.sentAt ? formatDate(b.sentAt) : b.scheduledFor ? `Scheduled: ${formatDate(b.scheduledFor)}` : formatDate(b.createdAt)}
+                      {b.sentAt ? formatDate(b.sentAt) : b.scheduledAt ? `Scheduled: ${formatDate(b.scheduledAt)}` : formatDate(b.createdAt)}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" onClick={() => setSelectedBroadcast(b)}>
                           <Eye className="h-4 w-4" />
                         </Button>
-                        {b.status !== "SENT" && (
+                        {(b.status === "DRAFT" || b.status === "SCHEDULED") && (
+                          <Button variant="ghost" size="icon" onClick={() => handleSend(b.id)} disabled={sending}>
+                            <Send className="h-4 w-4 text-primary" />
+                          </Button>
+                        )}
+                        {b.status !== "SENT" && b.status !== "SENDING" && (
                           <Button variant="ghost" size="icon" onClick={() => handleDelete(b.id)}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
@@ -256,7 +286,7 @@ export default function BroadcastsPage() {
             </div>
             <div>
               <Label className="text-muted-foreground">Content</Label>
-              <div className="mt-1 p-4 bg-muted rounded-lg prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: selectedBroadcast?.content || "" }} />
+              <div className="mt-1 p-4 bg-muted rounded-lg prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: selectedBroadcast?.body || "" }} />
             </div>
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div>
@@ -269,7 +299,7 @@ export default function BroadcastsPage() {
               </div>
               <div>
                 <Label className="text-muted-foreground">Sent By</Label>
-                <p>{selectedBroadcast?.sender.name || selectedBroadcast?.sender.email}</p>
+                <p>{selectedBroadcast?.sender?.name || selectedBroadcast?.sender?.email || "—"}</p>
               </div>
             </div>
             {selectedBroadcast?.status === "SENT" && (

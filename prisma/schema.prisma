@@ -32,6 +32,7 @@ model User {
   supportTickets  SupportTicket[]
   auditLogs       AuditLog[]
   promoCodeUses   PromoCodeUse[]
+  broadcasts      EmailBroadcast[] @relation("BroadcastSender")
 }
 
 enum UserStatus {
@@ -458,6 +459,8 @@ model EmailBroadcast {
   failedCount Int                 @default(0)
   scheduledAt DateTime?
   sentAt      DateTime?
+  senderId    String?
+  sender      User?               @relation("BroadcastSender", fields: [senderId], references: [id])
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 }
@@ -467,6 +470,7 @@ enum BroadcastTargetType {
   PRO_USERS
   FREE_USERS
   SPECIFIC_USERS
+  ADMINS
 }
 
 enum BroadcastStatus {
