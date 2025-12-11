@@ -112,18 +112,23 @@ Write only the email body, nothing else.`;
     console.error("Generate reply error:", error);
 
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error("Full error message:", errorMessage);
 
     if (errorMessage.includes("API key not configured") || errorMessage.includes("not configured")) {
       return NextResponse.json(
-        { error: "AI provider is not configured. Please contact administrator." },
+        { error: "AI provider is not configured. Try switching to another provider." },
         { status: 503 }
       );
     }
 
-    // Return actual error message for debugging
+    if (errorMessage.includes("429") || errorMessage.includes("quota") || errorMessage.includes("Too Many Requests") || errorMessage.includes("rate limit")) {
+      return NextResponse.json(
+        { error: "AI rate limit exceeded. Please switch to another AI provider." },
+        { status: 429 }
+      );
+    }
+
     return NextResponse.json(
-      { error: `Error: ${errorMessage}` },
+      { error: "Failed to generate reply. Please try again." },
       { status: 500 }
     );
   }

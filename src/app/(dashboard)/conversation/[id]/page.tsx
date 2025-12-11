@@ -27,7 +27,10 @@ import {
   Clock,
   CheckCheck,
   Reply,
+  AlertTriangle,
+  Bot,
 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
 import Link from "next/link";
 
@@ -74,6 +77,8 @@ export default function ConversationPage() {
   const [sendingReply, setSendingReply] = useState(false);
   const [generatingReply, setGeneratingReply] = useState(false);
   const [replyTone, setReplyTone] = useState("professional");
+  const [aiProvider, setAiProvider] = useState("gemini");
+  const [aiError, setAiError] = useState<string | null>(null);
 
   useEffect(() => {
     if (emailId) {
@@ -124,11 +129,12 @@ export default function ConversationPage() {
     if (!email) return;
 
     setGeneratingReply(true);
+    setAiError(null);
     try {
       const response = await fetch(`/api/emails/${email.id}/generate-reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tone: replyTone }),
+        body: JSON.stringify({ tone: replyTone, provider: aiProvider }),
       });
 
       if (response.ok) {
@@ -137,10 +143,21 @@ export default function ConversationPage() {
         toast.success("Reply generated!");
       } else {
         const data = await response.json();
-        toast.error(data.error || "Failed to generate reply");
+        const errorMsg = data.error || "Failed to generate reply";
+
+        // Check if it's a rate limit error
+        if (errorMsg.includes("rate limit") || errorMsg.includes("quota") || errorMsg.includes("429")) {
+          setAiError(`${aiProvider === "gemini" ? "Gemini" : "Groq"} rate limit exceeded. Try switching to ${aiProvider === "gemini" ? "Groq" : "Gemini"}.`);
+        } else if (errorMsg.includes("not configured")) {
+          setAiError(`${aiProvider === "gemini" ? "Gemini" : "Groq"} is not configured. Try switching to ${aiProvider === "gemini" ? "Groq" : "Gemini"}.`);
+        } else {
+          setAiError(errorMsg);
+        }
+        toast.error(errorMsg);
       }
     } catch (error) {
       console.error("Generate reply error:", error);
+      setAiError("Failed to connect to AI service. Please try again.");
       toast.error("Failed to generate reply");
     } finally {
       setGeneratingReply(false);
@@ -369,7 +386,41 @@ export default function ConversationPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* AI Error Alert */}
+                {aiError && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription className="flex items-center justify-between">
+                      <span>{aiError}</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setAiProvider(aiProvider === "gemini" ? "groq" : "gemini");
+                          setAiError(null);
+                        }}
+                        className="ml-2"
+                      >
+                        Switch to {aiProvider === "gemini" ? "Groq" : "Gemini"}
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="flex flex-wrap items-center gap-3">
+                  {/* AI Provider Selector */}
+                  <Select value={aiProvider} onValueChange={(value) => { setAiProvider(value); setAiError(null); }}>
+                    <SelectTrigger className="w-32">
+                      <Bot className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="AI Provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gemini">Gemini</SelectItem>
+                      <SelectItem value="groq">Groq</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {/* Tone Selector */}
                   <Select value={replyTone} onValueChange={setReplyTone}>
                     <SelectTrigger className="w-40">
                       <SelectValue placeholder="Select tone" />
@@ -381,6 +432,7 @@ export default function ConversationPage() {
                       <SelectItem value="enthusiastic">Enthusiastic</SelectItem>
                     </SelectContent>
                   </Select>
+
                   <Button
                     variant="outline"
                     size="sm"
