@@ -83,23 +83,34 @@ export async function refreshAccessToken(userId: string) {
     refresh_token: connection.refreshToken,
   });
 
-  const { credentials } = await oauth2Client.refreshAccessToken();
+  try {
+    const { credentials } = await oauth2Client.refreshAccessToken();
 
-  if (credentials.access_token) {
-    const newExpiresAt = new Date(credentials.expiry_date || Date.now() + 3600 * 1000);
+    if (credentials.access_token) {
+      const newExpiresAt = new Date(credentials.expiry_date || Date.now() + 3600 * 1000);
 
-    await saveGmailConnection(
-      userId,
-      credentials.access_token,
-      connection.refreshToken,
-      newExpiresAt,
-      connection.connectedEmail
-    );
+      await saveGmailConnection(
+        userId,
+        credentials.access_token,
+        connection.refreshToken,
+        newExpiresAt,
+        connection.connectedEmail
+      );
 
-    return credentials.access_token;
+      return credentials.access_token;
+    }
+
+    throw new Error("Failed to refresh access token - no access token returned");
+  } catch (error) {
+    console.error("Gmail token refresh error:", error);
+    // Delete the invalid connection so user can reconnect
+    try {
+      await prisma.gmailConnection.delete({ where: { userId } });
+    } catch (deleteError) {
+      console.error("Failed to delete invalid Gmail connection:", deleteError);
+    }
+    throw new Error("Gmail session expired. Please reconnect Gmail in settings.");
   }
-
-  throw new Error("Failed to refresh access token");
 }
 
 export async function getGmailClient(userId: string) {
