@@ -7,6 +7,8 @@ import {
   updateEnvVar,
   deleteEnvVar,
   isVercelConfigured,
+  setEnvVariable,
+  deleteEnvVariable,
 } from "@/lib/vercel";
 
 export async function GET() {
@@ -80,6 +82,16 @@ export async function POST(request: NextRequest) {
       type: type || "encrypted",
     });
 
+    // Also update local .env file if development is targeted
+    const targets = target || ["production", "preview", "development"];
+    if (targets.includes("development")) {
+      try {
+        await setEnvVariable(key, value);
+      } catch (envError) {
+        console.warn("Failed to update local .env file:", envError);
+      }
+    }
+
     await createAuditLog({
       userId: session.user?.id,
       action: "CREATE_ENV_VAR",
@@ -123,6 +135,15 @@ export async function PATCH(request: NextRequest) {
       type,
     });
 
+    // Also update local .env file if development is targeted
+    if (envVar.target.includes("development")) {
+      try {
+        await setEnvVariable(envVar.key, value);
+      } catch (envError) {
+        console.warn("Failed to update local .env file:", envError);
+      }
+    }
+
     await createAuditLog({
       userId: session.user?.id,
       action: "UPDATE_ENV_VAR",
@@ -160,6 +181,15 @@ export async function DELETE(request: NextRequest) {
     }
 
     await deleteEnvVar(id);
+
+    // Also remove from local .env file
+    if (key) {
+      try {
+        await deleteEnvVariable(key);
+      } catch (envError) {
+        console.warn("Failed to update local .env file:", envError);
+      }
+    }
 
     await createAuditLog({
       userId: session.user?.id,
