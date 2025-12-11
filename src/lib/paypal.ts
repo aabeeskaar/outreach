@@ -1,4 +1,4 @@
-import { Client, Environment, LogLevel, OrdersController, CheckoutPaymentIntent } from "@paypal/paypal-server-sdk";
+import { Client, Environment, LogLevel, OrdersController, CheckoutPaymentIntent, PaypalExperienceLandingPage, PaypalExperienceUserAction } from "@paypal/paypal-server-sdk";
 
 const client = new Client({
   clientCredentialsAuthCredentials: {
@@ -37,8 +37,8 @@ export async function createPayPalOrder(userId: string) {
           paypal: {
             experienceContext: {
               brandName: "OutreachAI",
-              landingPage: "BILLING",
-              userAction: "PAY_NOW",
+              landingPage: PaypalExperienceLandingPage.Billing,
+              userAction: PaypalExperienceUserAction.PayNow,
               returnUrl: `${process.env.NEXTAUTH_URL}/api/paypal/capture`,
               cancelUrl: `${process.env.NEXTAUTH_URL}/pricing?canceled=true`,
             },

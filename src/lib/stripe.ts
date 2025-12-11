@@ -1,9 +1,37 @@
 import Stripe from "stripe";
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-11-17.clover",
-  typescript: true,
-});
+let stripeInstance: Stripe | null = null;
+
+function getStripe(): Stripe {
+  if (!stripeInstance) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error("STRIPE_SECRET_KEY is not set");
+    }
+    stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-11-17.clover",
+      typescript: true,
+    });
+  }
+  return stripeInstance;
+}
+
+export const stripe = {
+  get checkout() {
+    return getStripe().checkout;
+  },
+  get billingPortal() {
+    return getStripe().billingPortal;
+  },
+  get subscriptions() {
+    return getStripe().subscriptions;
+  },
+  get customers() {
+    return getStripe().customers;
+  },
+  get webhooks() {
+    return getStripe().webhooks;
+  },
+};
 
 export const PLANS = {
   FREE: {
