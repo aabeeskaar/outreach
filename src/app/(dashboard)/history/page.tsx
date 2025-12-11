@@ -369,15 +369,25 @@ export default function HistoryPage() {
   };
 
   const stripHtml = (html: string) => {
-    return html
-      .replace(/<[^>]*>/g, "")
+    // First decode HTML entities
+    let text = html
       .replace(/&nbsp;/g, " ")
       .replace(/&amp;/g, "&")
       .replace(/&lt;/g, "<")
       .replace(/&gt;/g, ">")
       .replace(/&quot;/g, '"')
-      .replace(/\s+/g, " ")
-      .trim();
+      .replace(/&#39;/g, "'");
+
+    // Remove the quoted reply section (On ... wrote:)
+    text = text.replace(/On\s+[^<]*wrote:[\s\S]*/gi, "").trim();
+
+    // Remove HTML tags
+    text = text.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]*>/g, "");
+
+    // Clean up extra whitespace but preserve line breaks
+    text = text.replace(/[ \t]+/g, " ").replace(/\n\s*\n/g, "\n\n").trim();
+
+    return text;
   };
 
   const getReplyCount = (email: Email) => {
@@ -970,9 +980,8 @@ export default function HistoryPage() {
                           {format(parseGmailDate(message.date), "MMM d, h:mm a")}
                         </span>
                       </div>
-                      <div className="text-sm whitespace-pre-wrap">
-                        {stripHtml(message.body).substring(0, 1000)}
-                        {stripHtml(message.body).length > 1000 && "..."}
+                      <div className="text-sm whitespace-pre-wrap max-h-[300px] overflow-y-auto">
+                        {stripHtml(message.body)}
                       </div>
                     </div>
                   ))}
