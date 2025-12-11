@@ -15,6 +15,7 @@ model User {
   name            String?
   image           String?
   emailVerified   DateTime?
+  role            UserRole         @default(USER)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   accounts        Account[]
@@ -26,6 +27,13 @@ model User {
   sessions        Session[]
   subscription    Subscription?
   freeEmailsUsed  Int              @default(0)
+  feedbacks       Feedback[]
+  supportTickets  SupportTicket[]
+}
+
+enum UserRole {
+  USER
+  ADMIN
 }
 
 model Subscription {
@@ -218,4 +226,55 @@ enum EmailStatus {
   DRAFT
   SENT
   FAILED
+}
+
+model Feedback {
+  id        String         @id @default(uuid())
+  userId    String
+  type      FeedbackType
+  rating    Int?           // 1-5 rating
+  message   String
+  page      String?        // Which page the feedback is about
+  createdAt DateTime       @default(now())
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model SupportTicket {
+  id          String             @id @default(uuid())
+  userId      String
+  subject     String
+  description String
+  status      SupportTicketStatus @default(OPEN)
+  priority    TicketPriority      @default(MEDIUM)
+  adminNotes  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+enum FeedbackType {
+  BUG
+  FEATURE_REQUEST
+  GENERAL
+  COMPLIMENT
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
 }

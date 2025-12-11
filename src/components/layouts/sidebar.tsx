@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -15,6 +16,8 @@ import {
   LogOut,
   Crown,
   BarChart3,
+  HeadphonesIcon,
+  Shield,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -29,11 +32,20 @@ const navigation = [
   { name: "History", href: "/history", icon: History },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
   { name: "Settings", href: "/settings", icon: Settings },
+  { name: "Support", href: "/support", icon: HeadphonesIcon },
   { name: "Upgrade", href: "/pricing", icon: Crown, highlight: true },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    // Check if user is admin
+    fetch("/api/admin/stats")
+      .then((res) => setIsAdmin(res.ok))
+      .catch(() => setIsAdmin(false));
+  }, []);
 
   return (
     <div className="flex h-full w-64 flex-col bg-card border-r">
@@ -66,6 +78,21 @@ export function Sidebar() {
             </Link>
           );
         })}
+
+        {isAdmin && (
+          <Link
+            href="/admin"
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              pathname.startsWith("/admin")
+                ? "bg-red-500 text-white"
+                : "bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20"
+            )}
+          >
+            <Shield className="h-4 w-4" />
+            Admin Panel
+          </Link>
+        )}
       </nav>
 
       <div className="px-3 py-4 border-t">
