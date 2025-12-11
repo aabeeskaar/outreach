@@ -180,17 +180,42 @@ export default function ConversationPage() {
   };
 
   const stripHtml = (html: string) => {
+    // First, remove the quoted reply section (Gmail style: "On ... wrote:" followed by quoted content)
+    // This pattern matches various Gmail quote formats
     let text = html
+      .replace(/(<div class="gmail_quote">[\s\S]*$)/gi, "") // Gmail quote div
+      .replace(/(On\s+\w+,\s+\d+\s+\w+\s+\d+\s+at\s+[\d:]+,[\s\S]*wrote:[\s\S]*$)/gi, "") // On Day, DD Mon YYYY at HH:MM, ... wrote:
+      .replace(/(On\s+[\d\/\-]+[\s\S]*wrote:[\s\S]*$)/gi, "") // On date ... wrote:
+      .replace(/(<blockquote[\s\S]*<\/blockquote>)/gi, ""); // Blockquote tags
+
+    // Decode HTML entities
+    text = text
       .replace(/&nbsp;/g, " ")
       .replace(/&amp;/g, "&")
       .replace(/&lt;/g, "<")
       .replace(/&gt;/g, ">")
       .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'");
+      .replace(/&#39;/g, "'")
+      .replace(/&apos;/g, "'");
 
-    text = text.replace(/On\s+[^<]*wrote:[\s\S]*/gi, "").trim();
-    text = text.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]*>/g, "");
-    text = text.replace(/[ \t]+/g, " ").replace(/\n\s*\n/g, "\n\n").trim();
+    // Convert block elements to newlines
+    text = text
+      .replace(/<\/div>/gi, "\n")
+      .replace(/<\/p>/gi, "\n\n")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/li>/gi, "\n")
+      .replace(/<li>/gi, "• ");
+
+    // Remove remaining HTML tags
+    text = text.replace(/<[^>]*>/g, "");
+
+    // Clean up whitespace while preserving intentional line breaks
+    text = text
+      .replace(/[ \t]+/g, " ")  // Multiple spaces to single space
+      .replace(/\n /g, "\n")     // Remove space after newline
+      .replace(/ \n/g, "\n")     // Remove space before newline
+      .replace(/\n{3,}/g, "\n\n") // Max 2 consecutive newlines
+      .trim();
 
     return text;
   };
