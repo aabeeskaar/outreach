@@ -98,13 +98,23 @@ IMPORTANT GUIDELINES:
 - Use proper email formatting with clear paragraphs
 - Never fabricate or exaggerate the sender's qualifications
 - If information is limited, focus on what is known rather than making assumptions
+- NEVER use placeholder text like [your field], [specific area], [relevant field/area], etc. Use actual information provided or write generically without brackets.
+- NEVER leave any text in square brackets [] in the output
 
 OUTPUT FORMAT:
 Return your response as valid JSON with exactly two fields:
-- "subject": A compelling email subject line (max 60 characters)
-- "body": The email body in plain text with proper paragraph breaks using \\n\\n
+- "subject": A compelling email subject line (max 60 characters, no colons at the start)
+- "body": The email body in plain text with actual line breaks (not literal \\n characters)
 
-Do not include any text outside the JSON object.`;
+Example format:
+{"subject": "Interest in Research Collaboration", "body": "Dear Dr. Smith,
+
+I am writing to express my interest in your research work...
+
+Best regards,
+John"}
+
+Do not include any text outside the JSON object. Do not use markdown code blocks.`;
 
 const PURPOSE_DESCRIPTIONS: Record<EmailPurpose, string> = {
   JOB_APPLICATION:
@@ -351,6 +361,27 @@ async function generateWithGroq(prompt: string): Promise<{ subject: string; body
   return parseAIResponse(content);
 }
 
+function cleanEmailOutput(subject: string, body: string): { subject: string; body: string } {
+  // Clean subject: remove leading colons, trim whitespace
+  let cleanSubject = subject
+    .replace(/^[:：\s]+/, '') // Remove leading colons and whitespace
+    .replace(/\\n/g, ' ')     // Replace any escaped newlines with space
+    .trim();
+
+  // Clean body: convert literal \n to actual newlines, remove placeholder brackets
+  let cleanBody = body
+    .replace(/\\n\\n/g, '\n\n')  // Convert \\n\\n to double newline
+    .replace(/\\n/g, '\n')        // Convert \\n to single newline
+    .replace(/\\r/g, '')          // Remove carriage returns
+    .replace(/\\t/g, '  ')        // Convert tabs to spaces
+    .replace(/\\"/g, '"')         // Unescape quotes
+    .replace(/\[([^\]]*)\]/g, '') // Remove any [placeholder] text
+    .replace(/\n{3,}/g, '\n\n')   // Normalize multiple newlines to max 2
+    .trim();
+
+  return { subject: cleanSubject, body: cleanBody };
+}
+
 function parseAIResponse(text: string): { subject: string; body: string } {
   console.log("AI Response to parse:", text.slice(0, 1000));
 
@@ -370,7 +401,7 @@ function parseAIResponse(text: string): { subject: string; body: string } {
       try {
         const result = JSON.parse(jsonStr);
         if (result.subject && result.body) {
-          return { subject: result.subject, body: result.body };
+          return cleanEmailOutput(result.subject, result.body);
         }
       } catch (e) {
         console.log("Direct JSON parse failed:", e);
@@ -385,10 +416,7 @@ function parseAIResponse(text: string): { subject: string; body: string } {
           .replace(/\t/g, '\\t');
         const result = JSON.parse(fixedJson);
         if (result.subject && result.body) {
-          return {
-            subject: result.subject,
-            body: result.body.replace(/\\n/g, '\n')
-          };
+          return cleanEmailOutput(result.subject, result.body);
         }
       } catch (e) {
         console.log("Fixed JSON parse failed:", e);
@@ -415,14 +443,7 @@ function parseAIResponse(text: string): { subject: string; body: string } {
         }
 
         if (bodyContent) {
-          return {
-            subject: subjectMatch[1],
-            body: bodyContent
-              .replace(/\\n/g, '\n')
-              .replace(/\\"/g, '"')
-              .replace(/\\t/g, '\t')
-              .trim(),
-          };
+          return cleanEmailOutput(subjectMatch[1], bodyContent);
         }
       }
     }
@@ -466,16 +487,16 @@ function parseAIResponse(text: string): { subject: string; body: string } {
     }
 
     if (subject && body) {
-      return { subject, body };
+      return cleanEmailOutput(subject, body);
     }
 
     // Last resort: use first line as subject, rest as body
     const lines = cleanText.split('\n').filter(l => l.trim());
     if (lines.length >= 2) {
-      return {
-        subject: lines[0].replace(/^["'{}\[\]]+|["'{}\[\]]+$/g, '').slice(0, 100),
-        body: lines.slice(1).join('\n').replace(/^["'{}\[\]]+|["'{}\[\]]+$/g, ''),
-      };
+      return cleanEmailOutput(
+        lines[0].replace(/^["'{}\[\]]+|["'{}\[\]]+$/g, '').slice(0, 100),
+        lines.slice(1).join('\n').replace(/^["'{}\[\]]+|["'{}\[\]]+$/g, '')
+      );
     }
 
     throw new Error("Could not parse AI response");
