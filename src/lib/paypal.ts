@@ -1,4 +1,4 @@
-import { Client, Environment, LogLevel, OrdersController } from "@paypal/paypal-server-sdk";
+import { Client, Environment, LogLevel, OrdersController, CheckoutPaymentIntent } from "@paypal/paypal-server-sdk";
 
 const client = new Client({
   clientCredentialsAuthCredentials: {
@@ -22,7 +22,7 @@ export async function createPayPalOrder(userId: string) {
   try {
     const response = await ordersController.createOrder({
       body: {
-        intent: "CAPTURE",
+        intent: CheckoutPaymentIntent.Capture,
         purchaseUnits: [
           {
             amount: {
