@@ -95,7 +95,7 @@ export async function POST(
 
     try {
       // Send email via Gmail with tracking
-      await sendEmail(
+      const gmailResponse = await sendEmail(
         session.user.id,
         email.recipient.email,
         email.subject,
@@ -103,13 +103,15 @@ export async function POST(
         attachments
       );
 
-      // Update email status with tracking ID
+      // Update email status with tracking ID and Gmail IDs for reply tracking
       const updatedEmail = await prisma.generatedEmail.update({
         where: { id },
         data: {
           status: "SENT",
           sentAt: new Date(),
           trackingId,
+          gmailMessageId: gmailResponse.id,
+          gmailThreadId: gmailResponse.threadId,
         },
         include: {
           recipient: {

@@ -277,3 +277,145 @@ export async function getSentEmails(
 
   return { messages: fullMessages, nextPageToken };
 }
+
+// Helper function to extract body from Gmail message parts
+function extractBody(payload: { body?: { data?: string }; parts?: Array<{ mimeType?: string; body?: { data?: string }; parts?: Array<{ mimeType?: string; body?: { data?: string } }> }> }): string {
+  if (payload?.body?.data) {
+    return Buffer.from(payload.body.data, "base64").toString("utf-8");
+  }
+
+  if (payload?.parts) {
+    // Look for text/html first, then text/plain
+    for (const mimeType of ["text/html", "text/plain"]) {
+      const part = payload.parts.find((p) => p.mimeType === mimeType);
+      if (part?.body?.data) {
+        return Buffer.from(part.body.data, "base64").toString("utf-8");
+      }
+      // Check nested parts (multipart/alternative)
+      if (part?.parts) {
+        const nestedPart = part.parts.find((p) => p.mimeType === mimeType);
+        if (nestedPart?.body?.data) {
+          return Buffer.from(nestedPart.body.data, "base64").toString("utf-8");
+        }
+      }
+    }
+    // Fallback: try first part with data
+    for (const part of payload.parts) {
+      if (part?.body?.data) {
+        return Buffer.from(part.body.data, "base64").toString("utf-8");
+      }
+    }
+  }
+
+  return "";
+}
+
+export interface ThreadMessage {
+  id: string;
+  threadId: string;
+  subject: string;
+  from: string;
+  to: string;
+  snippet: string;
+  body: string;
+  date: string;
+  isFromMe: boolean;
+}
+
+// Get all messages in a thread (for viewing conversation/replies)
+export async function getThreadMessages(
+  userId: string,
+  threadId: string
+): Promise<ThreadMessage[]> {
+  const gmail = await getGmailClient(userId);
+  const connection = await getGmailConnection(userId);
+  if (!connection) throw new Error("No Gmail connection found");
+
+  const thread = await gmail.users.threads.get({
+    userId: "me",
+    id: threadId,
+    format: "full",
+  });
+
+  const messages = thread.data.messages || [];
+  const userEmail = connection.connectedEmail.toLowerCase();
+
+  return messages.map((msg) => {
+    const headers = msg.payload?.headers || [];
+    const getHeader = (name: string) =>
+      headers.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value || "";
+
+    const from = getHeader("From");
+    const isFromMe = from.toLowerCase().includes(userEmail);
+
+    return {
+      id: msg.id!,
+      threadId: msg.threadId!,
+      subject: getHeader("Subject"),
+      from,
+      to: getHeader("To"),
+      snippet: msg.snippet || "",
+      body: extractBody(msg.payload as Parameters<typeof extractBody>[0]),
+      date: getHeader("Date"),
+      isFromMe,
+    };
+  });
+}
+
+// Check if a thread has replies (messages not from the user)
+export async function getThreadReplyCount(
+  userId: string,
+  threadId: string
+): Promise<{ total: number; replies: number }> {
+  const messages = await getThreadMessages(userId, threadId);
+  const replies = messages.filter((m) => !m.isFromMe).length;
+  return { total: messages.length, replies };
+}
+
+// Send a reply to an email thread
+export async function sendReply(
+  userId: string,
+  threadId: string,
+  messageId: string,
+  to: string,
+  subject: string,
+  body: string
+): Promise<{ id: string; threadId: string }> {
+  const gmail = await getGmailClient(userId);
+  const connection = await getGmailConnection(userId);
+  if (!connection) throw new Error("No Gmail connection found");
+
+  // Ensure subject has Re: prefix
+  const replySubject = subject.startsWith("Re:") ? subject : `Re: ${subject}`;
+
+  const email = [
+    `From: ${connection.connectedEmail}`,
+    `To: ${to}`,
+    `Subject: ${replySubject}`,
+    `In-Reply-To: ${messageId}`,
+    `References: ${messageId}`,
+    `MIME-Version: 1.0`,
+    `Content-Type: text/html; charset="UTF-8"`,
+    "",
+    body,
+  ].join("\r\n");
+
+  const encodedEmail = Buffer.from(email)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  const response = await gmail.users.messages.send({
+    userId: "me",
+    requestBody: {
+      raw: encodedEmail,
+      threadId,
+    },
+  });
+
+  return {
+    id: response.data.id!,
+    threadId: response.data.threadId!,
+  };
+}

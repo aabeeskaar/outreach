@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -36,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
   Mail,
@@ -53,8 +55,11 @@ import {
   Inbox,
   MousePointerClick,
   MailOpen,
+  MessageSquare,
+  Reply,
+  Sparkles,
 } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import Link from "next/link";
 
 interface Email {
@@ -68,6 +73,7 @@ interface Email {
   createdAt: string;
   openCount?: number;
   clickCount?: number;
+  gmailThreadId?: string | null;
   recipient: {
     name: string;
     email: string;
@@ -84,6 +90,18 @@ interface GmailEmail {
   snippet: string;
   body: string;
   date: string;
+}
+
+interface ThreadMessage {
+  id: string;
+  threadId: string;
+  subject: string;
+  from: string;
+  to: string;
+  snippet: string;
+  body: string;
+  date: string;
+  isFromMe: boolean;
 }
 
 interface Pagination {
@@ -123,6 +141,16 @@ export default function HistoryPage() {
   const [sending, setSending] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [nextPageToken, setNextPageToken] = useState<string | undefined>();
+
+  // Thread/Reply state
+  const [threadDialogOpen, setThreadDialogOpen] = useState(false);
+  const [threadEmail, setThreadEmail] = useState<Email | null>(null);
+  const [threadMessages, setThreadMessages] = useState<ThreadMessage[]>([]);
+  const [threadLoading, setThreadLoading] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
+  const [generatingReply, setGeneratingReply] = useState(false);
+  const [replyTone, setReplyTone] = useState("professional");
 
   useEffect(() => {
     fetchEmails();
@@ -235,6 +263,90 @@ export default function HistoryPage() {
     }
   };
 
+  const handleViewThread = async (email: Email) => {
+    if (!email.gmailThreadId) {
+      toast.error("No conversation thread available for this email");
+      return;
+    }
+
+    setThreadEmail(email);
+    setThreadDialogOpen(true);
+    setThreadLoading(true);
+    setThreadMessages([]);
+    setReplyText("");
+
+    try {
+      const response = await fetch(`/api/emails/${email.id}/thread`);
+      if (response.ok) {
+        const data = await response.json();
+        setThreadMessages(data.thread.messages);
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to load conversation");
+      }
+    } catch (error) {
+      console.error("Failed to load thread:", error);
+      toast.error("Failed to load conversation");
+    } finally {
+      setThreadLoading(false);
+    }
+  };
+
+  const handleGenerateReply = async () => {
+    if (!threadEmail) return;
+
+    setGeneratingReply(true);
+    try {
+      const response = await fetch(`/api/emails/${threadEmail.id}/generate-reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tone: replyTone }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setReplyText(data.reply);
+        toast.success("Reply generated!");
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to generate reply");
+      }
+    } catch (error) {
+      console.error("Generate reply error:", error);
+      toast.error("Failed to generate reply");
+    } finally {
+      setGeneratingReply(false);
+    }
+  };
+
+  const handleSendReply = async () => {
+    if (!threadEmail || !replyText.trim()) return;
+
+    setSendingReply(true);
+    try {
+      const response = await fetch(`/api/emails/${threadEmail.id}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: replyText }),
+      });
+
+      if (response.ok) {
+        toast.success("Reply sent!");
+        setReplyText("");
+        // Refresh thread
+        handleViewThread(threadEmail);
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to send reply");
+      }
+    } catch (error) {
+      console.error("Send reply error:", error);
+      toast.error("Failed to send reply");
+    } finally {
+      setSendingReply(false);
+    }
+  };
+
   const filteredEmails = emails.filter(
     (email) =>
       email.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -254,6 +366,23 @@ export default function HistoryPage() {
     } catch {
       return new Date();
     }
+  };
+
+  const stripHtml = (html: string) => {
+    return html
+      .replace(/<[^>]*>/g, "")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+
+  const getReplyCount = (email: Email) => {
+    // This would ideally come from the API, but for now we'll check if thread exists
+    return email.gmailThreadId ? null : 0; // null means "check thread", 0 means no thread
   };
 
   if (loading && emails.length === 0) {
@@ -443,6 +572,11 @@ export default function HistoryPage() {
                                   <MousePointerClick className="h-3.5 w-3.5 text-green-500" />
                                   {email.clickCount || 0}
                                 </span>
+                                {email.gmailThreadId && (
+                                  <span className="flex items-center gap-1" title="Has conversation">
+                                    <MessageSquare className="h-3.5 w-3.5 text-purple-500" />
+                                  </span>
+                                )}
                               </div>
                             ) : (
                               <span className="text-xs text-muted-foreground">-</span>
@@ -468,6 +602,14 @@ export default function HistoryPage() {
                                   <Eye className="mr-2 h-4 w-4" />
                                   View Details
                                 </DropdownMenuItem>
+                                {email.status === "SENT" && email.gmailThreadId && (
+                                  <DropdownMenuItem
+                                    onClick={() => handleViewThread(email)}
+                                  >
+                                    <MessageSquare className="mr-2 h-4 w-4" />
+                                    View Conversation
+                                  </DropdownMenuItem>
+                                )}
                                 {email.status !== "SENT" && (
                                   <DropdownMenuItem
                                     onClick={() => handleResend(email.id)}
@@ -720,6 +862,17 @@ export default function HistoryPage() {
             <Button variant="outline" onClick={() => setSelectedEmail(null)}>
               Close
             </Button>
+            {selectedEmail?.status === "SENT" && selectedEmail.gmailThreadId && (
+              <Button
+                onClick={() => {
+                  setSelectedEmail(null);
+                  handleViewThread(selectedEmail);
+                }}
+              >
+                <MessageSquare className="mr-2 h-4 w-4" />
+                View Conversation
+              </Button>
+            )}
             {selectedEmail?.status !== "SENT" && (
               <Button
                 onClick={() => {
@@ -775,6 +928,124 @@ export default function HistoryPage() {
               Close
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Thread/Conversation Dialog */}
+      <Dialog open={threadDialogOpen} onOpenChange={setThreadDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5" />
+              Conversation with {threadEmail?.recipient.name}
+            </DialogTitle>
+            <DialogDescription>
+              {threadEmail?.subject}
+            </DialogDescription>
+          </DialogHeader>
+
+          {threadLoading ? (
+            <div className="flex-1 flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <>
+              {/* Messages */}
+              <ScrollArea className="flex-1 max-h-[400px] pr-4">
+                <div className="space-y-4">
+                  {threadMessages.map((message, index) => (
+                    <div
+                      key={message.id}
+                      className={`p-4 rounded-lg ${
+                        message.isFromMe
+                          ? "bg-primary/10 ml-8"
+                          : "bg-muted mr-8"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-sm">
+                          {message.isFromMe ? "You" : threadEmail?.recipient.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {format(parseGmailDate(message.date), "MMM d, h:mm a")}
+                        </span>
+                      </div>
+                      <div className="text-sm whitespace-pre-wrap">
+                        {stripHtml(message.body).substring(0, 1000)}
+                        {stripHtml(message.body).length > 1000 && "..."}
+                      </div>
+                    </div>
+                  ))}
+
+                  {threadMessages.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No messages in this conversation
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+
+              {/* Reply Section */}
+              {threadMessages.some((m) => !m.isFromMe) && (
+                <div className="border-t pt-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Select value={replyTone} onValueChange={setReplyTone}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="Tone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="professional">Professional</SelectItem>
+                        <SelectItem value="friendly">Friendly</SelectItem>
+                        <SelectItem value="concise">Concise</SelectItem>
+                        <SelectItem value="enthusiastic">Enthusiastic</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGenerateReply}
+                      disabled={generatingReply}
+                    >
+                      {generatingReply ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="mr-2 h-4 w-4" />
+                      )}
+                      Generate Reply with AI
+                    </Button>
+                  </div>
+
+                  <Textarea
+                    placeholder="Write your reply..."
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    rows={4}
+                  />
+
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleSendReply}
+                      disabled={sendingReply || !replyText.trim()}
+                    >
+                      {sendingReply ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Reply className="mr-2 h-4 w-4" />
+                      )}
+                      Send Reply
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* No replies yet message */}
+              {threadMessages.length > 0 && !threadMessages.some((m) => !m.isFromMe) && (
+                <div className="border-t pt-4 text-center text-muted-foreground">
+                  <p>No replies yet. Check back later!</p>
+                </div>
+              )}
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

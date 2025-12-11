@@ -178,12 +178,16 @@ model GeneratedEmail {
   sentAt            DateTime?
   errorMessage      String?
   trackingId        String?      @unique
+  gmailMessageId    String?      // Gmail message ID for tracking replies
+  gmailThreadId     String?      // Gmail thread ID for conversation tracking
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   emailOpens        EmailOpen[]
   recipient         Recipient    @relation(fields: [recipientId], references: [id], onDelete: Cascade)
   user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   linkClicks        LinkClick[]
+
+  @@index([gmailThreadId])
 }
 
 model EmailOpen {

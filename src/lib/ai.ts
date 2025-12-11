@@ -537,3 +537,43 @@ export async function getRecipientContext(
     additionalNotes: recipient.additionalNotes,
   };
 }
+
+// Simple function to generate text using AI provider (for replies, etc.)
+export async function generateEmailWithProvider(
+  prompt: string,
+  provider: AIProvider = "gemini"
+): Promise<string> {
+  if (provider === "groq") {
+    if (!groq) {
+      throw new Error("Groq API key not configured");
+    }
+
+    const response = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      max_tokens: 1000,
+      temperature: 0.7,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error("No response from Groq");
+    }
+
+    return content.trim();
+  } else {
+    if (!gemini) {
+      throw new Error("Google Gemini API key not configured");
+    }
+
+    const model = gemini.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+    return response.text().trim();
+  }
+}
