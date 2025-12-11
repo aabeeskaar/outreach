@@ -2,11 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import Anthropic from "@anthropic-ai/sdk";
-
-const anthropic = process.env.ANTHROPIC_API_KEY
-  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  : null;
 
 const gemini = process.env.GOOGLE_GEMINI_API_KEY
   ? new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY)
@@ -82,36 +77,12 @@ async function extractWithGemini(resumeText: string): Promise<ExtractedProfile> 
     throw new Error("Google Gemini API key not configured");
   }
 
-  const model = gemini.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = gemini.getGenerativeModel({ model: "gemini-2.0-flash" });
   const result = await model.generateContent(EXTRACTION_PROMPT + resumeText);
   const response = result.response;
   const text = response.text();
 
   return parseExtractedData(text);
-}
-
-async function extractWithClaude(resumeText: string): Promise<ExtractedProfile> {
-  if (!anthropic) {
-    throw new Error("Anthropic API key not configured");
-  }
-
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 2000,
-    messages: [
-      {
-        role: "user",
-        content: EXTRACTION_PROMPT + resumeText,
-      },
-    ],
-  });
-
-  const content = response.content[0];
-  if (content.type !== "text") {
-    throw new Error("Unexpected response type from AI");
-  }
-
-  return parseExtractedData(content.text);
 }
 
 function parseExtractedData(text: string): ExtractedProfile {
@@ -177,7 +148,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { documentId, provider = "gemini" } = await request.json();
+    const { documentId } = await request.json();
 
     if (!documentId) {
       return NextResponse.json(
@@ -208,19 +179,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Extract profile data using AI
-    let extractedProfile: ExtractedProfile;
-
-    if (provider === "claude" && anthropic) {
-      extractedProfile = await extractWithClaude(document.extractedText);
-    } else if (gemini) {
-      extractedProfile = await extractWithGemini(document.extractedText);
-    } else {
+    // Extract profile data using Gemini
+    if (!gemini) {
       return NextResponse.json(
-        { error: "No AI provider configured" },
+        { error: "No AI provider configured. Add GOOGLE_GEMINI_API_KEY to your environment." },
         { status: 500 }
       );
     }
+
+    const extractedProfile = await extractWithGemini(document.extractedText);
 
     return NextResponse.json({
       success: true,

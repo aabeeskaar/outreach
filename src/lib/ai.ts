@@ -1,27 +1,17 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import OpenAI from "openai";
 import Groq from "groq-sdk";
 import prisma from "./prisma";
 
 // Initialize AI clients
-const anthropic = process.env.ANTHROPIC_API_KEY
-  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  : null;
-
 const gemini = process.env.GOOGLE_GEMINI_API_KEY
   ? new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY)
-  : null;
-
-const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
 
 const groq = process.env.GROQ_API_KEY
   ? new Groq({ apiKey: process.env.GROQ_API_KEY })
   : null;
 
-export type AIProvider = "claude" | "gemini" | "chatgpt" | "groq";
+export type AIProvider = "gemini" | "groq";
 
 interface UserContext {
   name: string | null;
@@ -262,37 +252,12 @@ Please generate a compelling, personalized email that:
 Return the response as JSON with "subject" and "body" fields only.`;
 }
 
-async function generateWithClaude(prompt: string): Promise<{ subject: string; body: string }> {
-  if (!anthropic) {
-    throw new Error("Anthropic API key not configured");
-  }
-
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 1500,
-    system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: "user",
-        content: prompt,
-      },
-    ],
-  });
-
-  const content = response.content[0];
-  if (content.type !== "text") {
-    throw new Error("Unexpected response type from AI");
-  }
-
-  return parseAIResponse(content.text);
-}
-
 async function generateWithGemini(prompt: string): Promise<{ subject: string; body: string }> {
   if (!gemini) {
     throw new Error("Google Gemini API key not configured");
   }
 
-  const model = gemini.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = gemini.getGenerativeModel({ model: "gemini-2.0-flash" });
 
   const fullPrompt = `${SYSTEM_PROMPT}\n\n${prompt}`;
 
@@ -301,35 +266,6 @@ async function generateWithGemini(prompt: string): Promise<{ subject: string; bo
   const text = response.text();
 
   return parseAIResponse(text);
-}
-
-async function generateWithChatGPT(prompt: string): Promise<{ subject: string; body: string }> {
-  if (!openai) {
-    throw new Error("OpenAI API key not configured");
-  }
-
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages: [
-      {
-        role: "system",
-        content: SYSTEM_PROMPT,
-      },
-      {
-        role: "user",
-        content: prompt,
-      },
-    ],
-    max_tokens: 1500,
-    temperature: 0.7,
-  });
-
-  const content = response.choices[0]?.message?.content;
-  if (!content) {
-    throw new Error("No response from ChatGPT");
-  }
-
-  return parseAIResponse(content);
 }
 
 async function generateWithGroq(prompt: string): Promise<{ subject: string; body: string }> {
@@ -511,13 +447,9 @@ export async function generateEmail(params: GenerateEmailParams): Promise<{
   body: string;
 }> {
   const prompt = buildPrompt(params);
-  const provider = params.provider || "gemini"; // Default to Gemini (free)
+  const provider = params.provider || "gemini"; // Default to Gemini
 
-  if (provider === "claude") {
-    return generateWithClaude(prompt);
-  } else if (provider === "chatgpt") {
-    return generateWithChatGPT(prompt);
-  } else if (provider === "groq") {
+  if (provider === "groq") {
     return generateWithGroq(prompt);
   } else {
     return generateWithGemini(prompt);
@@ -533,14 +465,6 @@ export function getAvailableProviders(): AIProvider[] {
 
   if (process.env.GROQ_API_KEY) {
     providers.push("groq");
-  }
-
-  if (process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== "your-anthropic-api-key") {
-    providers.push("claude");
-  }
-
-  if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== "your-openai-api-key") {
-    providers.push("chatgpt");
   }
 
   return providers;

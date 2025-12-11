@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate AI provider
-    const validProviders: AIProvider[] = ["claude", "gemini", "chatgpt", "groq"];
+    const validProviders: AIProvider[] = ["gemini", "groq"];
     const provider: AIProvider = validProviders.includes(data.provider) ? data.provider : "gemini";
 
     // Check if provider is available
@@ -158,13 +158,9 @@ export async function POST(request: NextRequest) {
 function getModelForProvider(provider: AIProvider): string {
   switch (provider) {
     case "gemini":
-      return "gemini-1.5-flash";
-    case "claude":
-      return "claude-sonnet-4-20250514";
-    case "chatgpt":
-      return "gpt-4o-mini";
+      return "gemini-2.0-flash";
     case "groq":
-      return "llama-3.1-70b-versatile";
+      return "llama-3.3-70b-versatile";
     default:
       return "unknown";
   }

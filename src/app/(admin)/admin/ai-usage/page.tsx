@@ -176,8 +176,6 @@ export default function AIUsagePage() {
                 <SelectItem value="all">All Providers</SelectItem>
                 <SelectItem value="gemini">Gemini</SelectItem>
                 <SelectItem value="groq">Groq</SelectItem>
-                <SelectItem value="claude">Claude</SelectItem>
-                <SelectItem value="chatgpt">ChatGPT</SelectItem>
               </SelectContent>
             </Select>
           </div>

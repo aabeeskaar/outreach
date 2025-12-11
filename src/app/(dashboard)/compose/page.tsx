@@ -409,24 +409,8 @@ function ComposePageContent() {
                     {availableProviders.includes("groq") && (
                       <SelectItem value="groq">
                         <div className="flex items-center gap-2">
-                          <span>Groq (Llama 3.1)</span>
+                          <span>Groq (Llama 3.3)</span>
                           <Badge variant="secondary" className="text-xs">Free</Badge>
-                        </div>
-                      </SelectItem>
-                    )}
-                    {availableProviders.includes("claude") && (
-                      <SelectItem value="claude">
-                        <div className="flex items-center gap-2">
-                          <span>Claude (Anthropic)</span>
-                          <Badge variant="outline" className="text-xs">Paid</Badge>
-                        </div>
-                      </SelectItem>
-                    )}
-                    {availableProviders.includes("chatgpt") && (
-                      <SelectItem value="chatgpt">
-                        <div className="flex items-center gap-2">
-                          <span>ChatGPT (OpenAI)</span>
-                          <Badge variant="outline" className="text-xs">Paid</Badge>
                         </div>
                       </SelectItem>
                     )}
@@ -654,7 +638,7 @@ function ComposePageContent() {
               <h4 className="font-semibold mb-2">Pro Plan - $10/month</h4>
               <ul className="text-sm space-y-1 text-muted-foreground">
                 <li>• Unlimited AI-generated emails</li>
-                <li>• All AI providers (Gemini, Claude)</li>
+                <li>• All AI providers (Gemini, Groq)</li>
                 <li>• Advanced email tracking</li>
                 <li>• Priority support</li>
               </ul>
