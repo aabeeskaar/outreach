@@ -67,11 +67,23 @@ export async function getGmailConnection(userId: string) {
 
   if (!connection) return null;
 
-  return {
-    ...connection,
-    accessToken: decrypt(connection.accessToken),
-    refreshToken: decrypt(connection.refreshToken),
-  };
+  try {
+    return {
+      ...connection,
+      accessToken: decrypt(connection.accessToken),
+      refreshToken: decrypt(connection.refreshToken),
+    };
+  } catch (error) {
+    console.error("Failed to decrypt Gmail tokens:", error);
+    // Delete the corrupted connection
+    try {
+      await prisma.gmailConnection.delete({ where: { userId } });
+      console.log("Deleted corrupted Gmail connection for user:", userId);
+    } catch (deleteError) {
+      console.error("Failed to delete corrupted connection:", deleteError);
+    }
+    return null;
+  }
 }
 
 export async function refreshAccessToken(userId: string) {

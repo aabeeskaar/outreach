@@ -7,6 +7,18 @@ export function encrypt(text: string): string {
 }
 
 export function decrypt(encryptedText: string): string {
-  const bytes = CryptoJS.AES.decrypt(encryptedText, ENCRYPTION_KEY);
-  return bytes.toString(CryptoJS.enc.Utf8);
+  try {
+    const bytes = CryptoJS.AES.decrypt(encryptedText, ENCRYPTION_KEY);
+    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+
+    if (!decrypted) {
+      console.error("Decryption returned empty string - likely wrong encryption key");
+      throw new Error("Failed to decrypt token - encryption key mismatch");
+    }
+
+    return decrypted;
+  } catch (error) {
+    console.error("Decryption error:", error);
+    throw new Error("Failed to decrypt token - please reconnect Gmail");
+  }
 }
