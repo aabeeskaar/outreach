@@ -14,7 +14,8 @@ export async function GET(request: NextRequest) {
 
     // Get order details to find the userId
     const orderDetails = await getPayPalOrder(token);
-    const userId = orderDetails.purchase_units?.[0]?.custom_id;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const userId = (orderDetails as any).purchaseUnits?.[0]?.customId;
 
     if (!userId) {
       return NextResponse.redirect(

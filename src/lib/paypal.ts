@@ -1,9 +1,9 @@
-import { Client, Environment, LogLevel, OrdersController, ApiError } from "@paypal/paypal-server-sdk";
+import { Client, Environment, LogLevel, OrdersController } from "@paypal/paypal-server-sdk";
 
 const client = new Client({
   clientCredentialsAuthCredentials: {
-    oAuthClientId: process.env.PAYPAL_CLIENT_ID!,
-    oAuthClientSecret: process.env.PAYPAL_CLIENT_SECRET!,
+    oAuthClientId: process.env.PAYPAL_CLIENT_ID || "",
+    oAuthClientSecret: process.env.PAYPAL_CLIENT_SECRET || "",
   },
   timeout: 0,
   environment: process.env.NODE_ENV === "production"
@@ -19,84 +19,74 @@ const client = new Client({
 const ordersController = new OrdersController(client);
 
 export async function createPayPalOrder(userId: string) {
-  const collect = {
-    body: {
-      intent: "CAPTURE" as const,
-      purchaseUnits: [
-        {
-          amount: {
-            currencyCode: "USD",
-            value: "10.00",
-          },
-          description: "OutreachAI Pro - Monthly Subscription",
-          customId: userId,
-        },
-      ],
-      applicationContext: {
-        brandName: "OutreachAI",
-        landingPage: "BILLING" as const,
-        userAction: "PAY_NOW" as const,
-        returnUrl: `${process.env.NEXTAUTH_URL}/api/paypal/capture`,
-        cancelUrl: `${process.env.NEXTAUTH_URL}/pricing?canceled=true`,
-      },
-    },
-    prefer: "return=minimal",
-  };
-
   try {
-    const { body, ...httpResponse } = await ordersController.ordersCreate(collect);
-    const order = JSON.parse(body as string);
+    const response = await ordersController.createOrder({
+      body: {
+        intent: "CAPTURE",
+        purchaseUnits: [
+          {
+            amount: {
+              currencyCode: "USD",
+              value: "10.00",
+            },
+            description: "OutreachAI Pro - Monthly Subscription",
+            customId: userId,
+          },
+        ],
+        paymentSource: {
+          paypal: {
+            experienceContext: {
+              brandName: "OutreachAI",
+              landingPage: "BILLING",
+              userAction: "PAY_NOW",
+              returnUrl: `${process.env.NEXTAUTH_URL}/api/paypal/capture`,
+              cancelUrl: `${process.env.NEXTAUTH_URL}/pricing?canceled=true`,
+            },
+          },
+        },
+      },
+    });
+
+    const order = response.result;
     return {
       id: order.id,
       status: order.status,
       links: order.links,
     };
   } catch (error) {
-    if (error instanceof ApiError) {
-      console.error("PayPal API Error:", error.message);
-      throw new Error(`PayPal Error: ${error.message}`);
-    }
-    throw error;
+    console.error("PayPal API Error:", error);
+    throw new Error("Failed to create PayPal order");
   }
 }
 
 export async function capturePayPalOrder(orderId: string) {
-  const collect = {
-    id: orderId,
-    prefer: "return=minimal",
-  };
-
   try {
-    const { body, ...httpResponse } = await ordersController.ordersCapture(collect);
-    const order = JSON.parse(body as string);
+    const response = await ordersController.captureOrder({
+      id: orderId,
+    });
+
+    const order = response.result;
     return {
       id: order.id,
       status: order.status,
       payer: order.payer,
-      purchaseUnits: order.purchase_units,
+      purchaseUnits: order.purchaseUnits,
     };
   } catch (error) {
-    if (error instanceof ApiError) {
-      console.error("PayPal Capture Error:", error.message);
-      throw new Error(`PayPal Capture Error: ${error.message}`);
-    }
-    throw error;
+    console.error("PayPal Capture Error:", error);
+    throw new Error("Failed to capture PayPal order");
   }
 }
 
 export async function getPayPalOrder(orderId: string) {
-  const collect = {
-    id: orderId,
-  };
-
   try {
-    const { body, ...httpResponse } = await ordersController.ordersGet(collect);
-    return JSON.parse(body as string);
+    const response = await ordersController.getOrder({
+      id: orderId,
+    });
+
+    return response.result;
   } catch (error) {
-    if (error instanceof ApiError) {
-      console.error("PayPal Get Order Error:", error.message);
-      throw new Error(`PayPal Error: ${error.message}`);
-    }
-    throw error;
+    console.error("PayPal Get Order Error:", error);
+    throw new Error("Failed to get PayPal order");
   }
 }
