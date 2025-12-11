@@ -40,19 +40,26 @@ export async function POST(
       );
     }
 
-    // Validate AI provider
-    const validProviders: AIProvider[] = ["gemini", "groq"];
-    const provider: AIProvider = validProviders.includes(requestedProvider)
-      ? requestedProvider
-      : "gemini";
-
-    // Check if provider is available
+    // Check if any AI provider is available
     const availableProviders = getAvailableProviders();
-    if (!availableProviders.includes(provider)) {
+    console.log("Available AI providers:", availableProviders);
+
+    if (availableProviders.length === 0) {
       return NextResponse.json(
-        { error: `AI provider "${provider}" is not configured.` },
-        { status: 400 }
+        { error: "No AI provider is configured. Please set up GOOGLE_GEMINI_API_KEY or GROQ_API_KEY." },
+        { status: 503 }
       );
+    }
+
+    // Validate AI provider - use requested or first available
+    const validProviders: AIProvider[] = ["gemini", "groq"];
+    let provider: AIProvider = validProviders.includes(requestedProvider)
+      ? requestedProvider
+      : availableProviders[0]; // Use first available instead of defaulting to gemini
+
+    // Check if selected provider is available
+    if (!availableProviders.includes(provider)) {
+      provider = availableProviders[0]; // Fallback to first available
     }
 
     // Get all messages in the thread
@@ -149,28 +156,39 @@ Write only the email body, nothing else.`;
   } catch (error) {
     console.error("Generate reply error:", error);
 
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Error message:", errorMessage);
+
     // Return more specific error messages
-    if (error instanceof Error) {
-      if (error.message.includes("API key not configured")) {
-        return NextResponse.json(
-          { error: "AI provider is not configured. Please contact administrator." },
-          { status: 503 }
-        );
-      }
-      if (error.message.includes("No Gmail connection")) {
-        return NextResponse.json(
-          { error: "Gmail is not connected. Please reconnect in settings." },
-          { status: 400 }
-        );
-      }
-      if (error.message.includes("refresh")) {
-        return NextResponse.json(
-          { error: "Gmail session expired. Please reconnect Gmail in settings." },
-          { status: 401 }
-        );
-      }
+    if (errorMessage.includes("API key not configured") || errorMessage.includes("not configured")) {
+      return NextResponse.json(
+        { error: "AI provider is not configured. Please contact administrator." },
+        { status: 503 }
+      );
+    }
+    if (errorMessage.includes("No Gmail connection")) {
+      return NextResponse.json(
+        { error: "Gmail is not connected. Please reconnect in settings." },
+        { status: 400 }
+      );
+    }
+    if (errorMessage.includes("refresh") || errorMessage.includes("token")) {
+      return NextResponse.json(
+        { error: "Gmail session expired. Please reconnect Gmail in settings." },
+        { status: 401 }
+      );
+    }
+    if (errorMessage.includes("No response") || errorMessage.includes("parse")) {
+      return NextResponse.json(
+        { error: "AI failed to generate a response. Please try again." },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json({ error: "Failed to generate reply. Please try again." }, { status: 500 });
+    // Return the actual error in development for debugging
+    return NextResponse.json(
+      { error: process.env.NODE_ENV === "development" ? errorMessage : "Failed to generate reply. Please try again." },
+      { status: 500 }
+    );
   }
 }
