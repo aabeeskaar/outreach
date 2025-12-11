@@ -8,15 +8,17 @@ function getOrdersController(): OrdersController {
       throw new Error("PayPal credentials are not configured");
     }
 
+    // Use PAYPAL_MODE to control sandbox vs production
+    // Default to sandbox unless explicitly set to "live"
+    const isLive = process.env.PAYPAL_MODE === "live";
+
     const client = new Client({
       clientCredentialsAuthCredentials: {
         oAuthClientId: process.env.PAYPAL_CLIENT_ID,
         oAuthClientSecret: process.env.PAYPAL_CLIENT_SECRET,
       },
       timeout: 0,
-      environment: process.env.NODE_ENV === "production"
-        ? Environment.Production
-        : Environment.Sandbox,
+      environment: isLive ? Environment.Production : Environment.Sandbox,
       logging: {
         logLevel: LogLevel.Info,
         logRequest: { logBody: true },
