@@ -13,7 +13,8 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Check, Sparkles, Zap, CreditCard } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Check, Sparkles, Zap, CreditCard, Tag, X } from "lucide-react";
 import { toast } from "sonner";
 
 export default function PricingPage() {
@@ -23,6 +24,16 @@ export default function PricingPage() {
     isPro: boolean;
     freeEmailsUsed: number;
     freeEmailsRemaining: number;
+  } | null>(null);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [appliedPromo, setAppliedPromo] = useState<{
+    code: string;
+    discountType: string;
+    discountValue: number;
+    discountText: string;
+    discountAmount: number;
+    finalPrice: number;
   } | null>(null);
 
   useEffect(() => {
@@ -51,11 +62,41 @@ export default function PricingPage() {
     }
   };
 
+  const handleApplyPromo = async () => {
+    if (!promoCode.trim()) return;
+    setPromoLoading(true);
+    try {
+      const res = await fetch("/api/promo-codes/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: promoCode }),
+      });
+      const data = await res.json();
+      if (res.ok && data.valid) {
+        setAppliedPromo(data);
+        toast.success(`Promo code applied: ${data.discountText}`);
+      } else {
+        toast.error(data.error || "Invalid promo code");
+      }
+    } catch {
+      toast.error("Failed to validate promo code");
+    } finally {
+      setPromoLoading(false);
+    }
+  };
+
+  const handleRemovePromo = () => {
+    setAppliedPromo(null);
+    setPromoCode("");
+  };
+
   const handleStripeCheckout = async () => {
     setLoading("stripe");
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ promoCode: appliedPromo?.code }),
       });
 
       const data = await res.json();
@@ -78,6 +119,8 @@ export default function PricingPage() {
     try {
       const res = await fetch("/api/paypal/create-order", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ promoCode: appliedPromo?.code }),
       });
 
       const data = await res.json();
@@ -187,8 +230,18 @@ export default function PricingPage() {
             </CardTitle>
             <CardDescription>For power users</CardDescription>
             <div className="mt-4">
-              <span className="text-4xl font-bold">$10</span>
-              <span className="text-muted-foreground">/month</span>
+              {appliedPromo ? (
+                <>
+                  <span className="text-2xl text-muted-foreground line-through mr-2">$10</span>
+                  <span className="text-4xl font-bold text-green-600">${appliedPromo.finalPrice.toFixed(2)}</span>
+                  <span className="text-muted-foreground">/month</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-4xl font-bold">$10</span>
+                  <span className="text-muted-foreground">/month</span>
+                </>
+              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -227,6 +280,33 @@ export default function PricingPage() {
               </Button>
             ) : (
               <>
+                {/* Promo Code Input */}
+                {appliedPromo ? (
+                  <div className="w-full p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Tag className="h-4 w-4 text-green-600" />
+                        <span className="text-sm font-medium text-green-700">{appliedPromo.code}</span>
+                        <Badge className="bg-green-100 text-green-700 text-xs">{appliedPromo.discountText}</Badge>
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleRemovePromo}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-full flex gap-2">
+                    <Input
+                      placeholder="Promo code"
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                      className="flex-1"
+                    />
+                    <Button variant="outline" onClick={handleApplyPromo} disabled={promoLoading || !promoCode.trim()}>
+                      {promoLoading ? "..." : "Apply"}
+                    </Button>
+                  </div>
+                )}
                 <Button
                   className="w-full"
                   onClick={handleStripeCheckout}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { canGenerateEmail, incrementEmailUsage } from "@/lib/subscription";
 import { generateEmail, getUserContext, getRecipientContext, getAvailableProviders, AIProvider } from "@/lib/ai";
+import prisma from "@/lib/prisma";
 
 // Simple in-memory rate limiting
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -106,15 +107,42 @@ export async function POST(request: NextRequest) {
       getRecipientContext(data.recipientId, session.user.id),
     ]);
 
-    // Generate email
-    const result = await generateEmail({
-      userContext,
-      recipientContext,
-      purpose: data.purpose,
-      tone: data.tone,
-      additionalContext: data.additionalContext,
-      provider,
-    });
+    // Generate email and track usage
+    let success = true;
+    let errorMessage: string | null = null;
+    let result;
+
+    try {
+      result = await generateEmail({
+        userContext,
+        recipientContext,
+        purpose: data.purpose,
+        tone: data.tone,
+        additionalContext: data.additionalContext,
+        provider,
+      });
+    } catch (genError) {
+      success = false;
+      errorMessage = genError instanceof Error ? genError.message : "Unknown error";
+      throw genError;
+    } finally {
+      // Track AI usage
+      try {
+        await prisma.aIUsage.create({
+          data: {
+            userId: session.user.id,
+            provider,
+            model: getModelForProvider(provider),
+            tokens: null, // We don't have token count from all providers
+            cost: null,
+            success,
+            error: errorMessage,
+          },
+        });
+      } catch (trackError) {
+        console.error("Failed to track AI usage:", trackError);
+      }
+    }
 
     // Increment usage for free tier users
     await incrementEmailUsage(session.user.id);
@@ -124,5 +152,20 @@ export async function POST(request: NextRequest) {
     console.error("Generate email error:", error);
     const message = error instanceof Error ? error.message : "Internal server error";
     return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+function getModelForProvider(provider: AIProvider): string {
+  switch (provider) {
+    case "gemini":
+      return "gemini-1.5-flash";
+    case "claude":
+      return "claude-sonnet-4-20250514";
+    case "chatgpt":
+      return "gpt-4o-mini";
+    case "groq":
+      return "llama-3.1-70b-versatile";
+    default:
+      return "unknown";
   }
 }
