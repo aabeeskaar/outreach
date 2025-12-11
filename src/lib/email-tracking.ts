@@ -4,13 +4,29 @@ export function generateTrackingId(): string {
   return randomBytes(16).toString("hex");
 }
 
+function getBaseUrl(): string {
+  // Priority: APP_URL > NEXTAUTH_URL > VERCEL_URL > localhost
+  // APP_URL is a custom env var for explicit tracking URL configuration
+  if (process.env.APP_URL) {
+    return process.env.APP_URL;
+  }
+  if (process.env.NEXTAUTH_URL) {
+    return process.env.NEXTAUTH_URL;
+  }
+  // Vercel automatically sets this
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return "http://localhost:3000";
+}
+
 export function getTrackingPixelUrl(trackingId: string): string {
-  const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+  const baseUrl = getBaseUrl();
   return `${baseUrl}/api/track/open/${trackingId}`;
 }
 
 export function getTrackedLinkUrl(trackingId: string, originalUrl: string): string {
-  const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+  const baseUrl = getBaseUrl();
   const encodedUrl = encodeURIComponent(originalUrl);
   return `${baseUrl}/api/track/click/${trackingId}?url=${encodedUrl}`;
 }

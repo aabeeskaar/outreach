@@ -14,6 +14,8 @@ export async function GET(
   try {
     const { trackingId } = await params;
 
+    console.log(`[Email Tracking] Open event for trackingId: ${trackingId}`);
+
     // Find the email by tracking ID
     const email = await prisma.generatedEmail.findUnique({
       where: { trackingId },
@@ -30,6 +32,9 @@ export async function GET(
           userAgent: request.headers.get("user-agent") || "unknown",
         },
       });
+      console.log(`[Email Tracking] Open recorded for email: ${email.id}`);
+    } else {
+      console.log(`[Email Tracking] No email found for trackingId: ${trackingId}`);
     }
 
     // Always return the tracking pixel, even if email not found
@@ -45,7 +50,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error("Track open error:", error);
+    console.error("[Email Tracking] Error tracking open:", error);
     // Return pixel even on error
     return new NextResponse(TRACKING_PIXEL, {
       status: 200,

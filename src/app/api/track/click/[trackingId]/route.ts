@@ -9,6 +9,8 @@ export async function GET(
     const { trackingId } = await params;
     const url = request.nextUrl.searchParams.get("url");
 
+    console.log(`[Email Tracking] Click event for trackingId: ${trackingId}`);
+
     if (!url) {
       return NextResponse.redirect(new URL("/", request.url));
     }
@@ -33,12 +35,15 @@ export async function GET(
           userAgent: request.headers.get("user-agent") || "unknown",
         },
       });
+      console.log(`[Email Tracking] Click recorded for email: ${email.id}, URL: ${decodedUrl}`);
+    } else {
+      console.log(`[Email Tracking] No email found for trackingId: ${trackingId}`);
     }
 
     // Redirect to the original URL
     return NextResponse.redirect(decodedUrl);
   } catch (error) {
-    console.error("Track click error:", error);
+    console.error("[Email Tracking] Error tracking click:", error);
     // On error, try to redirect to the URL anyway
     const url = request.nextUrl.searchParams.get("url");
     if (url) {

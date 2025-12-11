@@ -7,7 +7,12 @@ export default auth((req) => {
 
   // Public routes
   const publicRoutes = ["/", "/login", "/signup"];
-  const isPublicRoute = publicRoutes.includes(pathname) || pathname.startsWith("/api/auth");
+  const isPublicRoute =
+    publicRoutes.includes(pathname) ||
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/track/") ||  // Email tracking endpoints (open/click)
+    pathname.startsWith("/api/stripe/webhook") ||  // Stripe webhooks
+    pathname.startsWith("/api/analytics/track");  // Analytics tracking
 
   if (isPublicRoute) {
     return NextResponse.next();
