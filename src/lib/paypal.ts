@@ -64,9 +64,12 @@ export async function createPayPalOrder(userId: string) {
       status: order.status,
       links: order.links,
     };
-  } catch (error) {
-    console.error("PayPal API Error:", error);
-    throw new Error("Failed to create PayPal order");
+  } catch (error: unknown) {
+    console.error("PayPal API Error:", JSON.stringify(error, null, 2));
+    // Extract detailed error message
+    const err = error as { message?: string; body?: string; result?: { details?: Array<{ description?: string }> } };
+    const details = err.result?.details?.[0]?.description || err.body || err.message || "Unknown PayPal error";
+    throw new Error(details);
   }
 }
 
