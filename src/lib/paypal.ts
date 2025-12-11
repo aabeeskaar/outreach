@@ -1,26 +1,37 @@
 import { Client, Environment, LogLevel, OrdersController, CheckoutPaymentIntent, PaypalExperienceLandingPage, PaypalExperienceUserAction } from "@paypal/paypal-server-sdk";
 
-const client = new Client({
-  clientCredentialsAuthCredentials: {
-    oAuthClientId: process.env.PAYPAL_CLIENT_ID || "",
-    oAuthClientSecret: process.env.PAYPAL_CLIENT_SECRET || "",
-  },
-  timeout: 0,
-  environment: process.env.NODE_ENV === "production"
-    ? Environment.Production
-    : Environment.Sandbox,
-  logging: {
-    logLevel: LogLevel.Info,
-    logRequest: { logBody: true },
-    logResponse: { logHeaders: true },
-  },
-});
+let ordersControllerInstance: OrdersController | null = null;
 
-const ordersController = new OrdersController(client);
+function getOrdersController(): OrdersController {
+  if (!ordersControllerInstance) {
+    if (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) {
+      throw new Error("PayPal credentials are not configured");
+    }
+
+    const client = new Client({
+      clientCredentialsAuthCredentials: {
+        oAuthClientId: process.env.PAYPAL_CLIENT_ID,
+        oAuthClientSecret: process.env.PAYPAL_CLIENT_SECRET,
+      },
+      timeout: 0,
+      environment: process.env.NODE_ENV === "production"
+        ? Environment.Production
+        : Environment.Sandbox,
+      logging: {
+        logLevel: LogLevel.Info,
+        logRequest: { logBody: true },
+        logResponse: { logHeaders: true },
+      },
+    });
+
+    ordersControllerInstance = new OrdersController(client);
+  }
+  return ordersControllerInstance;
+}
 
 export async function createPayPalOrder(userId: string) {
   try {
-    const response = await ordersController.createOrder({
+    const response = await getOrdersController().createOrder({
       body: {
         intent: CheckoutPaymentIntent.Capture,
         purchaseUnits: [
@@ -61,7 +72,7 @@ export async function createPayPalOrder(userId: string) {
 
 export async function capturePayPalOrder(orderId: string) {
   try {
-    const response = await ordersController.captureOrder({
+    const response = await getOrdersController().captureOrder({
       id: orderId,
     });
 
@@ -80,7 +91,7 @@ export async function capturePayPalOrder(orderId: string) {
 
 export async function getPayPalOrder(orderId: string) {
   try {
-    const response = await ordersController.getOrder({
+    const response = await getOrdersController().getOrder({
       id: orderId,
     });
 
