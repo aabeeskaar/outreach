@@ -112,6 +112,7 @@ Write only the email body, nothing else.`;
     console.error("Generate reply error:", error);
 
     const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Full error message:", errorMessage);
 
     if (errorMessage.includes("API key not configured") || errorMessage.includes("not configured")) {
       return NextResponse.json(
@@ -120,8 +121,9 @@ Write only the email body, nothing else.`;
       );
     }
 
+    // Return actual error message for debugging
     return NextResponse.json(
-      { error: "Failed to generate reply. Please try again." },
+      { error: `Error: ${errorMessage}` },
       { status: 500 }
     );
   }
