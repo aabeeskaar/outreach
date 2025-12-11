@@ -6,9 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Save, Plus, Trash2, Eye, EyeOff, Key, AlertCircle, RefreshCw, Pencil } from "lucide-react";
+import { Save, Plus, Trash2, Eye, EyeOff, Key, FileText, RefreshCw, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 interface Setting {
@@ -23,8 +22,6 @@ interface EnvVar {
   id: string;
   key: string;
   value: string;
-  target: string[];
-  type: string;
 }
 
 export default function SettingsPage() {
@@ -37,8 +34,7 @@ export default function SettingsPage() {
   // Environment Variables state
   const [envVars, setEnvVars] = useState<EnvVar[]>([]);
   const [envLoading, setEnvLoading] = useState(true);
-  const [envConfigured, setEnvConfigured] = useState(false);
-  const [envMessage, setEnvMessage] = useState("");
+  const [envFileExists, setEnvFileExists] = useState(false);
   const [showAddEnv, setShowAddEnv] = useState(false);
   const [editingEnv, setEditingEnv] = useState<EnvVar | null>(null);
   const [showValues, setShowValues] = useState<Record<string, boolean>>({});
@@ -74,8 +70,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/admin/env-vars");
       if (res.ok) {
         const data = await res.json();
-        setEnvConfigured(data.configured);
-        setEnvMessage(data.message || "");
+        setEnvFileExists(data.exists);
         setEnvVars(data.envVars || []);
       }
     } catch (error) {
@@ -140,14 +135,14 @@ export default function SettingsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          key: envForm.key.toUpperCase(),
+          key: envForm.key,
           value: envForm.value,
         }),
       });
 
       const data = await res.json();
       if (res.ok) {
-        toast.success("Environment variable added. Redeploy required to take effect.");
+        toast.success("Environment variable added");
         setShowAddEnv(false);
         setEnvForm({ key: "", value: "" });
         fetchEnvVars();
@@ -173,7 +168,6 @@ export default function SettingsPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: editingEnv.id,
           key: editingEnv.key,
           value: envForm.value,
         }),
@@ -181,7 +175,7 @@ export default function SettingsPage() {
 
       const data = await res.json();
       if (res.ok) {
-        toast.success("Environment variable updated. Redeploy required to take effect.");
+        toast.success("Environment variable updated");
         setEditingEnv(null);
         setEnvForm({ key: "", value: "" });
         fetchEnvVars();
@@ -196,13 +190,13 @@ export default function SettingsPage() {
   };
 
   const handleDeleteEnvVar = async (env: EnvVar) => {
-    if (!confirm(`Delete environment variable "${env.key}"? Redeploy required to take effect.`)) return;
+    if (!confirm(`Delete environment variable "${env.key}"?`)) return;
 
     try {
       const res = await fetch("/api/admin/env-vars", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: env.id, key: env.key }),
+        body: JSON.stringify({ key: env.key }),
       });
 
       if (res.ok) {
@@ -227,22 +221,6 @@ export default function SettingsPage() {
 
   const toggleShowValue = (id: string) => {
     setShowValues((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  const getTargetBadges = (target: string[]) => {
-    return (
-      <div className="flex gap-1 flex-wrap">
-        {target.includes("production") && (
-          <Badge variant="default" className="text-xs">Production</Badge>
-        )}
-        {target.includes("preview") && (
-          <Badge variant="secondary" className="text-xs">Preview</Badge>
-        )}
-        {target.includes("development") && (
-          <Badge variant="outline" className="text-xs">Development</Badge>
-        )}
-      </div>
-    );
   };
 
   // Default settings to show/create
@@ -329,7 +307,9 @@ export default function SettingsPage() {
                       Environment Variables
                     </CardTitle>
                     <CardDescription>
-                      Manage Vercel environment variables. Changes require a redeploy to take effect.
+                      {envFileExists
+                        ? "Manage environment variables in your .env file"
+                        : "No .env file found. Add a variable to create one."}
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
@@ -337,12 +317,10 @@ export default function SettingsPage() {
                       <RefreshCw className={`h-4 w-4 mr-2 ${envLoading ? "animate-spin" : ""}`} />
                       Refresh
                     </Button>
-                    {envConfigured && (
-                      <Button size="sm" onClick={() => setShowAddEnv(true)}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Variable
-                      </Button>
-                    )}
+                    <Button size="sm" onClick={() => setShowAddEnv(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Variable
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
@@ -351,18 +329,13 @@ export default function SettingsPage() {
                   <div className="flex justify-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                   </div>
-                ) : !envConfigured ? (
+                ) : !envFileExists && envVars.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
-                    <h3 className="font-semibold text-lg mb-2">Vercel API Not Configured</h3>
+                    <FileText className="h-12 w-12 text-muted-foreground mb-4" />
+                    <h3 className="font-semibold text-lg mb-2">No .env file found</h3>
                     <p className="text-muted-foreground max-w-md mb-4">
-                      {envMessage || "To manage environment variables, you need to configure your Vercel API credentials."}
+                      Click &quot;Add Variable&quot; to create a .env file with your first environment variable.
                     </p>
-                    <div className="bg-muted p-4 rounded-lg text-left text-sm font-mono">
-                      <p>VERCEL_API_TOKEN=your_token</p>
-                      <p>VERCEL_PROJECT_ID=your_project_id</p>
-                      <p>VERCEL_TEAM_ID=your_team_id (optional)</p>
-                    </div>
                   </div>
                 ) : envVars.length === 0 ? (
                   <div className="text-center py-8">
@@ -381,15 +354,15 @@ export default function SettingsPage() {
                           <div className="flex items-center gap-2 mb-1">
                             <span className="font-mono font-medium text-sm">{env.key}</span>
                           </div>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <span className="font-mono truncate max-w-md">
                               {showValues[env.id]
                                 ? env.value
-                                : env.value && env.value.length > 0
+                                : env.value.length > 0
                                   ? "••••••••••••"
-                                  : "(encrypted)"}
+                                  : "(empty)"}
                             </span>
-                            {env.value && env.value.length > 0 && (
+                            {env.value.length > 0 && (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -404,7 +377,6 @@ export default function SettingsPage() {
                               </Button>
                             )}
                           </div>
-                          {env.target && getTargetBadges(env.target)}
                         </div>
                         <div className="flex gap-1">
                           <Button
@@ -491,11 +463,11 @@ export default function SettingsPage() {
               <Input
                 placeholder="MY_API_KEY"
                 value={envForm.key}
-                onChange={(e) => setEnvForm({ ...envForm, key: e.target.value.toUpperCase() })}
+                onChange={(e) => setEnvForm({ ...envForm, key: e.target.value })}
                 className="font-mono"
               />
               <p className="text-xs text-muted-foreground">
-                Uppercase letters, numbers, and underscores only
+                Letters, numbers, and underscores only
               </p>
             </div>
             <div className="space-y-2">
@@ -506,9 +478,6 @@ export default function SettingsPage() {
                 onChange={(e) => setEnvForm({ ...envForm, value: e.target.value })}
               />
             </div>
-            <p className="text-xs text-muted-foreground">
-              Variable will be added to all environments (Production, Preview, Development)
-            </p>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowAddEnv(false)}>
                 Cancel
@@ -535,7 +504,7 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <Label>Value</Label>
               <Input
-                placeholder="Enter new value"
+                placeholder="Enter value"
                 value={envForm.value}
                 onChange={(e) => setEnvForm({ ...envForm, value: e.target.value })}
               />
