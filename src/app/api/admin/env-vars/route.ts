@@ -2,27 +2,36 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin";
 import { createAuditLog } from "@/lib/audit";
 import {
-  checkEnvFileExists,
-  readEnvFile,
-  addEnvVariable,
-  updateEnvVariable,
-  deleteEnvVariable,
-} from "@/lib/env-file";
+  getEnvVars,
+  createEnvVar,
+  updateEnvVar,
+  deleteEnvVar,
+  isVercelConfigured,
+} from "@/lib/vercel";
 
-// GET - Read all environment variables from .env file
+// GET - Read all environment variables from Vercel
 export async function GET() {
   try {
     await requireAdmin();
 
-    const exists = await checkEnvFileExists();
-    const envVars = await readEnvFile();
+    if (!isVercelConfigured()) {
+      return NextResponse.json({
+        configured: false,
+        envVars: [],
+        message: "Vercel API not configured. Add VERCEL_API_TOKEN and VERCEL_PROJECT_ID to your environment variables.",
+      });
+    }
+
+    const envVars = await getEnvVars();
 
     return NextResponse.json({
-      exists,
-      envVars: envVars.map((env, index) => ({
-        id: index.toString(),
+      configured: true,
+      envVars: envVars.map((env) => ({
+        id: env.id,
         key: env.key,
         value: env.value,
+        target: env.target,
+        type: env.type,
       })),
     });
   } catch (error) {
@@ -36,8 +45,16 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await requireAdmin();
+
+    if (!isVercelConfigured()) {
+      return NextResponse.json(
+        { error: "Vercel API not configured" },
+        { status: 400 }
+      );
+    }
+
     const body = await request.json();
-    const { key, value } = body;
+    const { key, value, target, type } = body;
 
     if (!key || value === undefined) {
       return NextResponse.json(
@@ -46,7 +63,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate key format (uppercase with underscores recommended but not required)
+    // Validate key format
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
       return NextResponse.json(
         { error: "Key must start with a letter or underscore, followed by letters, numbers, or underscores" },
@@ -54,7 +71,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await addEnvVariable(key, value);
+    await createEnvVar({
+      key,
+      value,
+      target: target || ["production", "preview", "development"],
+      type: type || "encrypted",
+    });
 
     await createAuditLog({
       userId: session.user?.id,
@@ -76,23 +98,35 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const session = await requireAdmin();
-    const body = await request.json();
-    const { key, value } = body;
 
-    if (!key || value === undefined) {
+    if (!isVercelConfigured()) {
       return NextResponse.json(
-        { error: "Key and value are required" },
+        { error: "Vercel API not configured" },
         { status: 400 }
       );
     }
 
-    await updateEnvVariable(key, value);
+    const body = await request.json();
+    const { id, key, value, target, type } = body;
+
+    if (!id || value === undefined) {
+      return NextResponse.json(
+        { error: "ID and value are required" },
+        { status: 400 }
+      );
+    }
+
+    await updateEnvVar(id, {
+      value,
+      target,
+      type,
+    });
 
     await createAuditLog({
       userId: session.user?.id,
       action: "UPDATE_ENV_VAR",
       entityType: "EnvVar",
-      entityId: key,
+      entityId: key || id,
       newValue: { key },
     });
 
@@ -108,22 +142,30 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await requireAdmin();
-    const { key } = await request.json();
 
-    if (!key) {
+    if (!isVercelConfigured()) {
       return NextResponse.json(
-        { error: "Key is required" },
+        { error: "Vercel API not configured" },
         { status: 400 }
       );
     }
 
-    await deleteEnvVariable(key);
+    const { id, key } = await request.json();
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "ID is required" },
+        { status: 400 }
+      );
+    }
+
+    await deleteEnvVar(id);
 
     await createAuditLog({
       userId: session.user?.id,
       action: "DELETE_ENV_VAR",
       entityType: "EnvVar",
-      entityId: key,
+      entityId: key || id,
     });
 
     return NextResponse.json({ success: true });
