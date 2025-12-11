@@ -408,20 +408,41 @@ export async function sendReply(
   const connection = await getGmailConnection(userId);
   if (!connection) throw new Error("No Gmail connection found");
 
+  // Get the actual Message-ID header from the message we're replying to
+  const originalMessage = await gmail.users.messages.get({
+    userId: "me",
+    id: messageId,
+    format: "metadata",
+    metadataHeaders: ["Message-ID", "References"],
+  });
+
+  const headers = originalMessage.data.payload?.headers || [];
+  const originalMessageId = headers.find(h => h.name?.toLowerCase() === "message-id")?.value || "";
+  const existingReferences = headers.find(h => h.name?.toLowerCase() === "references")?.value || "";
+
+  // Build References header (existing references + the message we're replying to)
+  const references = existingReferences
+    ? `${existingReferences} ${originalMessageId}`
+    : originalMessageId;
+
   // Ensure subject has Re: prefix
   const replySubject = subject.startsWith("Re:") ? subject : `Re: ${subject}`;
 
-  const email = [
+  const emailHeaders = [
     `From: ${connection.connectedEmail}`,
     `To: ${to}`,
     `Subject: ${replySubject}`,
-    `In-Reply-To: ${messageId}`,
-    `References: ${messageId}`,
     `MIME-Version: 1.0`,
     `Content-Type: text/html; charset="UTF-8"`,
-    "",
-    body,
-  ].join("\r\n");
+  ];
+
+  // Only add In-Reply-To and References if we have the original Message-ID
+  if (originalMessageId) {
+    emailHeaders.push(`In-Reply-To: ${originalMessageId}`);
+    emailHeaders.push(`References: ${references}`);
+  }
+
+  const email = [...emailHeaders, "", body].join("\r\n");
 
   const encodedEmail = Buffer.from(email)
     .toString("base64")
