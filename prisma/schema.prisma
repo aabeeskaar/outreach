@@ -278,3 +278,34 @@ enum TicketPriority {
   HIGH
   URGENT
 }
+
+model PageView {
+  id        String   @id @default(uuid())
+  path      String
+  userId    String?
+  sessionId String?
+  userAgent String?
+  referrer  String?
+  country   String?
+  createdAt DateTime @default(now())
+
+  @@index([path])
+  @@index([createdAt])
+  @@index([userId])
+}
+
+model DailyStats {
+  id            String   @id @default(uuid())
+  date          DateTime @unique @db.Date
+  pageViews     Int      @default(0)
+  uniqueVisitors Int     @default(0)
+  newUsers      Int      @default(0)
+  emailsGenerated Int    @default(0)
+  emailsSent    Int      @default(0)
+  newSubscriptions Int   @default(0)
+  revenue       Float    @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([date])
+}

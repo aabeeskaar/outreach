@@ -10,7 +10,8 @@ import {
   MessageSquare,
   HeadphonesIcon,
   ArrowLeft,
-  Shield
+  Shield,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -61,6 +62,7 @@ export default function AdminLayout({
 
   const navItems = [
     { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
     { href: "/admin/users", label: "Users", icon: Users },
     { href: "/admin/feedback", label: "Feedback", icon: MessageSquare },
     { href: "/admin/support", label: "Support", icon: HeadphonesIcon },
