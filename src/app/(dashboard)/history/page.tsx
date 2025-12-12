@@ -54,6 +54,7 @@ import {
   MessageSquare,
   ChevronLeft,
   ChevronRight,
+  Bell,
 } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
@@ -308,8 +309,8 @@ export default function HistoryPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Subject</TableHead>
                   <TableHead>Recipient</TableHead>
+                  <TableHead>Subject</TableHead>
                   <TableHead>Purpose</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Tracking</TableHead>
@@ -321,18 +322,29 @@ export default function HistoryPage() {
                 {filteredEmails.map((email) => {
                   const status = statusConfig[email.status];
                   const StatusIcon = status.icon;
+                  const hasReplies = email.gmailThreadId;
                   return (
-                    <TableRow key={email.id}>
+                    <TableRow key={email.id} className={hasReplies ? "bg-primary/5" : ""}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{email.recipient.name}</p>
+                              {hasReplies && (
+                                <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {email.recipient.email}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
                       <TableCell className="font-medium max-w-[200px] truncate">
                         {email.subject}
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{email.recipient.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {email.recipient.email}
-                          </p>
-                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">
@@ -347,23 +359,23 @@ export default function HistoryPage() {
                       </TableCell>
                       <TableCell>
                         {email.status === "SENT" ? (
-                          <div className="flex items-center gap-3 text-sm">
-                            <span className="flex items-center gap-1" title="Opens">
-                              <MailOpen className="h-3.5 w-3.5 text-blue-500" />
-                              {email.openCount || 0}
-                            </span>
-                            <span className="flex items-center gap-1" title="Clicks">
-                              <MousePointerClick className="h-3.5 w-3.5 text-green-500" />
-                              {email.clickCount || 0}
-                            </span>
-                            {email.gmailThreadId && (
-                              <span className="flex items-center gap-1" title="Has conversation">
-                                <MessageSquare className="h-3.5 w-3.5 text-purple-500" />
-                              </span>
+                          <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-0.5 px-2 py-1 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400" title="Email Opens">
+                              <MailOpen className="h-3.5 w-3.5" />
+                              <span className="text-xs font-semibold ml-1">{email.openCount || 0}</span>
+                            </div>
+                            <div className="flex items-center gap-0.5 px-2 py-1 rounded-md bg-green-500/10 text-green-600 dark:text-green-400" title="Link Clicks">
+                              <MousePointerClick className="h-3.5 w-3.5" />
+                              <span className="text-xs font-semibold ml-1">{email.clickCount || 0}</span>
+                            </div>
+                            {hasReplies && (
+                              <div className="flex items-center gap-0.5 px-2 py-1 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400" title="Has Replies">
+                                <MessageSquare className="h-3.5 w-3.5" />
+                              </div>
                             )}
                           </div>
                         ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
+                          <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
