@@ -58,6 +58,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface ReplyStats {
   total: number;
@@ -109,6 +110,7 @@ const purposeLabels: Record<string, string> = {
 };
 
 export default function HistoryPage() {
+  const router = useRouter();
   const [emails, setEmails] = useState<Email[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(true);
@@ -333,7 +335,11 @@ export default function HistoryPage() {
                   const StatusIcon = status.icon;
                   const hasUnreadReplies = email.replyStats && email.replyStats.fromRecipient > 0 && !email.conversationRead;
                   return (
-                    <TableRow key={email.id} className={hasUnreadReplies ? "bg-primary/5" : ""}>
+                    <TableRow
+                      key={email.id}
+                      className={`cursor-pointer hover:bg-muted/50 ${hasUnreadReplies ? "bg-primary/5" : ""}`}
+                      onClick={() => router.push(`/conversation/${email.id}`)}
+                    >
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <div>
@@ -405,7 +411,7 @@ export default function HistoryPage() {
                           "MMM d, yyyy"
                         )}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">
