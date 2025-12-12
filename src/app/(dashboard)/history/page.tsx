@@ -78,6 +78,7 @@ interface Email {
   clickCount?: number;
   gmailThreadId?: string | null;
   replyStats?: ReplyStats;
+  conversationRead?: boolean;
   recipient: {
     name: string;
     email: string;
@@ -330,15 +331,15 @@ export default function HistoryPage() {
                 {filteredEmails.map((email) => {
                   const status = statusConfig[email.status];
                   const StatusIcon = status.icon;
-                  const hasRecipientReplies = email.replyStats && email.replyStats.fromRecipient > 0;
+                  const hasUnreadReplies = email.replyStats && email.replyStats.fromRecipient > 0 && !email.conversationRead;
                   return (
-                    <TableRow key={email.id} className={hasRecipientReplies ? "bg-primary/5" : ""}>
+                    <TableRow key={email.id} className={hasUnreadReplies ? "bg-primary/5" : ""}>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <div>
                             <div className="flex items-center gap-2">
                               <p className="font-medium">{email.recipient.name}</p>
-                              {hasRecipientReplies && (
+                              {hasUnreadReplies && (
                                 <span className="relative flex h-2 w-2">
                                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75"></span>
                                   <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>

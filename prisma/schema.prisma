@@ -180,6 +180,7 @@ model GeneratedEmail {
   trackingId        String?      @unique
   gmailMessageId    String?      // Gmail message ID for tracking replies
   gmailThreadId     String?      // Gmail thread ID for conversation tracking
+  conversationRead  Boolean      @default(true) // Track if user has seen latest replies
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   emailOpens        EmailOpen[]

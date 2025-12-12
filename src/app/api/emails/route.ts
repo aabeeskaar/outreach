@@ -81,6 +81,7 @@ export async function GET(request: NextRequest) {
           openCount: email._count.emailOpens,
           clickCount: email._count.linkClicks,
           replyStats,
+          conversationRead: email.conversationRead,
           _count: undefined,
         };
       })

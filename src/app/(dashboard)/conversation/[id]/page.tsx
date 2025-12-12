@@ -131,8 +131,17 @@ export default function ConversationPage() {
       fetchEmail();
       fetchThread();
       fetchTrackingStats();
+      markConversationAsRead();
     }
   }, [emailId]);
+
+  const markConversationAsRead = async () => {
+    try {
+      await fetch(`/api/emails/${emailId}/read`, { method: "POST" });
+    } catch (error) {
+      // Silent fail - not critical
+    }
+  };
 
   const fetchEmail = async () => {
     try {
