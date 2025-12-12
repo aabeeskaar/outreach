@@ -11,7 +11,7 @@ export async function GET() {
     }
 
     // Get the default AI provider setting
-    const setting = await prisma.setting.findUnique({
+    const setting = await prisma.appSetting.findUnique({
       where: { key: "ai.default_provider" },
     });
 
