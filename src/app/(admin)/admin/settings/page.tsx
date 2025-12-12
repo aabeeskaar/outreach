@@ -7,7 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Save, Plus, Trash2, Eye, EyeOff, Key, FileText, RefreshCw, Pencil } from "lucide-react";
+import { Save, Plus, Trash2, Eye, EyeOff, Key, FileText, RefreshCw, Pencil, Bot } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 
 interface Setting {
@@ -233,6 +240,19 @@ export default function SettingsPage() {
     { key: "email.max_length", label: "Max Email Length", category: "email", default: "2000" },
   ];
 
+  // AI Provider options
+  const aiProviders = [
+    { value: "gemini", label: "Google Gemini", description: "Fast and efficient" },
+    { value: "groq", label: "Groq (Llama)", description: "High-speed inference" },
+    { value: "openai", label: "OpenAI GPT", description: "Advanced language model" },
+    { value: "claude", label: "Anthropic Claude", description: "Thoughtful responses" },
+  ];
+
+  const getAiDefaultSetting = () => {
+    const setting = settings.find(s => s.key === "ai.default_provider");
+    return setting?.value || "gemini";
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -248,6 +268,10 @@ export default function SettingsPage() {
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="pricing">Pricing</TabsTrigger>
             <TabsTrigger value="email">Email</TabsTrigger>
+            <TabsTrigger value="ai" className="gap-2">
+              <Bot className="h-3 w-3" />
+              AI
+            </TabsTrigger>
             <TabsTrigger value="env" className="gap-2">
               <Key className="h-3 w-3" />
               Environment
@@ -295,6 +319,112 @@ export default function SettingsPage() {
               </Card>
             </TabsContent>
           ))}
+
+          {/* AI Settings Tab */}
+          <TabsContent value="ai" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bot className="h-5 w-5" />
+                  AI Provider Settings
+                </CardTitle>
+                <CardDescription>
+                  Configure the default AI provider for email generation
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Default AI Provider */}
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">Default AI Provider</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Select the primary AI provider that will be used by default for email generation
+                  </p>
+                  <Select
+                    value={getAiDefaultSetting()}
+                    onValueChange={(value) => updateSetting("ai.default_provider", value, "ai")}
+                  >
+                    <SelectTrigger className="w-full max-w-sm">
+                      <SelectValue placeholder="Select AI provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {aiProviders.map((provider) => (
+                        <SelectItem key={provider.value} value={provider.value}>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{provider.label}</span>
+                            <span className="text-xs text-muted-foreground">- {provider.description}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Provider Priority Order */}
+                <div className="space-y-3 pt-4 border-t">
+                  <Label className="text-base font-medium">Provider Priority Order</Label>
+                  <p className="text-sm text-muted-foreground">
+                    The selected provider will be tried first. Others serve as fallbacks.
+                  </p>
+                  <div className="space-y-2">
+                    {aiProviders.map((provider, index) => {
+                      const isDefault = getAiDefaultSetting() === provider.value;
+                      return (
+                        <div
+                          key={provider.value}
+                          className={`flex items-center justify-between p-3 rounded-lg border ${
+                            isDefault ? "bg-primary/5 border-primary/20" : "bg-muted/30"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                              isDefault ? "bg-primary text-primary-foreground" : "bg-muted-foreground/20 text-muted-foreground"
+                            }`}>
+                              {isDefault ? "1" : index + 1}
+                            </span>
+                            <div>
+                              <p className="font-medium">{provider.label}</p>
+                              <p className="text-xs text-muted-foreground">{provider.description}</p>
+                            </div>
+                          </div>
+                          {isDefault && (
+                            <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-medium">
+                              Default
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* API Keys Status */}
+                <div className="space-y-3 pt-4 border-t">
+                  <Label className="text-base font-medium">API Keys Configuration</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Configure API keys in the Environment tab to enable providers
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 rounded-lg border bg-muted/30">
+                      <p className="font-medium text-sm">Google Gemini</p>
+                      <p className="text-xs text-muted-foreground font-mono">GOOGLE_GEMINI_API_KEY</p>
+                    </div>
+                    <div className="p-3 rounded-lg border bg-muted/30">
+                      <p className="font-medium text-sm">Groq</p>
+                      <p className="text-xs text-muted-foreground font-mono">GROQ_API_KEY</p>
+                    </div>
+                    <div className="p-3 rounded-lg border bg-muted/30">
+                      <p className="font-medium text-sm">OpenAI</p>
+                      <p className="text-xs text-muted-foreground font-mono">OPENAI_API_KEY</p>
+                    </div>
+                    <div className="p-3 rounded-lg border bg-muted/30">
+                      <p className="font-medium text-sm">Anthropic Claude</p>
+                      <p className="text-xs text-muted-foreground font-mono">ANTHROPIC_API_KEY</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* Environment Variables Tab */}
           <TabsContent value="env" className="space-y-4">

@@ -116,7 +116,7 @@ export default function ConversationPage() {
   const [sendingReply, setSendingReply] = useState(false);
   const [generatingReply, setGeneratingReply] = useState(false);
   const [replyTone, setReplyTone] = useState("professional");
-  const [aiProvider, setAiProvider] = useState("gemini");
+  const [aiProvider, setAiProvider] = useState("");
   const [aiError, setAiError] = useState<string | null>(null);
   const [trackingStats, setTrackingStats] = useState<TrackingStats | null>(null);
   const [trackingLoading, setTrackingLoading] = useState(false);
@@ -131,6 +131,10 @@ export default function ConversationPage() {
   const [sendingFollowUp, setSendingFollowUp] = useState(false);
 
   useEffect(() => {
+    fetchDefaultAiProvider();
+  }, []);
+
+  useEffect(() => {
     if (emailId) {
       fetchEmail();
       fetchThread();
@@ -138,6 +142,20 @@ export default function ConversationPage() {
       markConversationAsRead();
     }
   }, [emailId]);
+
+  const fetchDefaultAiProvider = async () => {
+    try {
+      const response = await fetch("/api/settings/ai");
+      if (response.ok) {
+        const data = await response.json();
+        setAiProvider(data.defaultProvider || "gemini");
+      } else {
+        setAiProvider("gemini");
+      }
+    } catch {
+      setAiProvider("gemini");
+    }
+  };
 
   const markConversationAsRead = async () => {
     try {
