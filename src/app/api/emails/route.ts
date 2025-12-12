@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-
 import prisma from "@/lib/prisma";
+import { getThreadMessages } from "@/lib/gmail";
 
 export async function GET(request: NextRequest) {
   try {
@@ -54,13 +54,37 @@ export async function GET(request: NextRequest) {
       prisma.generatedEmail.count({ where }),
     ]);
 
-    // Transform emails to include tracking counts
-    const emailsWithTracking = emails.map((email) => ({
-      ...email,
-      openCount: email._count.emailOpens,
-      clickCount: email._count.linkClicks,
-      _count: undefined,
-    }));
+    // Transform emails to include tracking counts and reply stats
+    const emailsWithTracking = await Promise.all(
+      emails.map(async (email) => {
+        let replyStats = { total: 0, fromMe: 0, fromRecipient: 0 };
+
+        // Fetch reply stats for emails with Gmail thread
+        if (email.gmailThreadId) {
+          try {
+            const messages = await getThreadMessages(session.user.id, email.gmailThreadId);
+            // Exclude the original email (first message)
+            const replies = messages.slice(1);
+            replyStats = {
+              total: replies.length,
+              fromMe: replies.filter((m) => m.isFromMe).length,
+              fromRecipient: replies.filter((m) => !m.isFromMe).length,
+            };
+          } catch (error) {
+            // Gmail fetch failed, use defaults
+            console.error("Failed to fetch thread for email:", email.id, error);
+          }
+        }
+
+        return {
+          ...email,
+          openCount: email._count.emailOpens,
+          clickCount: email._count.linkClicks,
+          replyStats,
+          _count: undefined,
+        };
+      })
+    );
 
     return NextResponse.json({
       emails: emailsWithTracking,

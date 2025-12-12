@@ -24,7 +24,9 @@
       "Bash(git push:*)",
       "Bash(ls:*)",
       "Bash(git commit:*)",
-      "Bash(npm info:*)"
+      "Bash(npm info:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

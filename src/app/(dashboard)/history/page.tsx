@@ -59,6 +59,12 @@ import {
 import { format } from "date-fns";
 import Link from "next/link";
 
+interface ReplyStats {
+  total: number;
+  fromMe: number;
+  fromRecipient: number;
+}
+
 interface Email {
   id: string;
   subject: string;
@@ -71,6 +77,7 @@ interface Email {
   openCount?: number;
   clickCount?: number;
   gmailThreadId?: string | null;
+  replyStats?: ReplyStats;
   recipient: {
     name: string;
     email: string;
@@ -314,6 +321,7 @@ export default function HistoryPage() {
                   <TableHead>Purpose</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Tracking</TableHead>
+                  <TableHead>Replies</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -322,18 +330,18 @@ export default function HistoryPage() {
                 {filteredEmails.map((email) => {
                   const status = statusConfig[email.status];
                   const StatusIcon = status.icon;
-                  const hasReplies = email.gmailThreadId;
+                  const hasRecipientReplies = email.replyStats && email.replyStats.fromRecipient > 0;
                   return (
-                    <TableRow key={email.id} className={hasReplies ? "bg-primary/5" : ""}>
+                    <TableRow key={email.id} className={hasRecipientReplies ? "bg-primary/5" : ""}>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <div>
                             <div className="flex items-center gap-2">
                               <p className="font-medium">{email.recipient.name}</p>
-                              {hasReplies && (
+                              {hasRecipientReplies && (
                                 <span className="relative flex h-2 w-2">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                                 </span>
                               )}
                             </div>
@@ -368,11 +376,23 @@ export default function HistoryPage() {
                               <MousePointerClick className="h-3.5 w-3.5" />
                               <span className="text-xs font-semibold ml-1">{email.clickCount || 0}</span>
                             </div>
-                            {hasReplies && (
-                              <div className="flex items-center gap-0.5 px-2 py-1 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400" title="Has Replies">
-                                <MessageSquare className="h-3.5 w-3.5" />
-                              </div>
-                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {email.status === "SENT" && email.replyStats && email.replyStats.total > 0 ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-semibold">{email.replyStats.total}</span>
+                            <div className="flex items-center gap-0.5">
+                              {email.replyStats.fromMe > 0 && (
+                                <span className="text-primary" title={`${email.replyStats.fromMe} sent by you`}>➜</span>
+                              )}
+                              {email.replyStats.fromRecipient > 0 && (
+                                <span className="text-green-500" title={`${email.replyStats.fromRecipient} from recipient`}>⬅</span>
+                              )}
+                            </div>
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
