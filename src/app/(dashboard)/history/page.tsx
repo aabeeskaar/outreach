@@ -383,11 +383,11 @@ export default function HistoryPage() {
                       </TableCell>
                       <TableCell>
                         {email.status === "SENT" && email.replyStats && email.replyStats.total > 0 ? (
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-2">
                             <span className="text-sm font-semibold">{email.replyStats.total}</span>
-                            <div className="flex items-center gap-0.5">
+                            <div className="flex flex-col text-sm leading-tight">
                               {email.replyStats.fromMe > 0 && (
-                                <span className="text-primary" title={`${email.replyStats.fromMe} sent by you`}>➜</span>
+                                <span className="text-blue-500" title={`${email.replyStats.fromMe} sent by you`}>➡</span>
                               )}
                               {email.replyStats.fromRecipient > 0 && (
                                 <span className="text-green-500" title={`${email.replyStats.fromRecipient} from recipient`}>⬅</span>
