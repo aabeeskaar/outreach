@@ -15,7 +15,7 @@ export async function POST(
     }
 
     const { id } = await params;
-    const { tone, additionalContext, provider: requestedProvider } = await request.json();
+    const { tone, additionalContext, provider: requestedProvider, isFollowUp } = await request.json();
 
     // Get email from database
     const email = await prisma.generatedEmail.findFirst({
@@ -58,7 +58,43 @@ export async function POST(
     });
 
     // Create prompt for AI - use the original email as context
-    const prompt = `You are helping someone write a professional email reply.
+    let prompt: string;
+
+    if (isFollowUp) {
+      prompt = `You are helping someone write a professional follow-up email. The recipient has not responded to the original email.
+
+ORIGINAL EMAIL SENT:
+To: ${email.recipient.name} (${email.recipient.email})
+Subject: ${email.subject}
+Body:
+${email.body}
+
+RECIPIENT INFORMATION:
+- Name: ${email.recipient.name}
+- Email: ${email.recipient.email}
+${email.recipient.organization ? `- Organization: ${email.recipient.organization}` : ""}
+
+${profile ? `SENDER INFORMATION:
+- Name: ${session.user.name || "User"}
+${profile.headline ? `- Title: ${profile.headline}` : ""}
+` : ""}
+
+${additionalContext ? `ADDITIONAL CONTEXT:\n${additionalContext}\n` : ""}
+
+REQUIREMENTS:
+- Write a ${tone || "professional"} follow-up email
+- Politely reference the previous email without being pushy
+- Express continued interest in connecting
+- Be concise and respectful of their time
+${tone === "urgent" ? "- Convey a sense of urgency without being demanding" : ""}
+- Don't include a subject line, just the body
+- Don't use placeholder text like [Your Name] - write a complete email
+- Start directly with the greeting (e.g., "Hi ${email.recipient.name}," or "Dear ${email.recipient.name},")
+- End with appropriate sign-off using the sender's name
+
+Write only the email body, nothing else.`;
+    } else {
+      prompt = `You are helping someone write a professional email reply.
 
 ORIGINAL EMAIL SENT:
 To: ${email.recipient.name} (${email.recipient.email})
@@ -87,6 +123,7 @@ REQUIREMENTS:
 - End with appropriate sign-off using the sender's name
 
 Write only the email body, nothing else.`;
+    }
 
     // Generate reply using AI
     const generatedReply = await generateEmailWithProvider(prompt, provider);

@@ -38,6 +38,7 @@ import {
   Paperclip,
   FileText,
   Trash2,
+  Forward,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -125,6 +126,9 @@ export default function ConversationPage() {
   const [saving, setSaving] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [followUpText, setFollowUpText] = useState("");
+  const [generatingFollowUp, setGeneratingFollowUp] = useState(false);
+  const [sendingFollowUp, setSendingFollowUp] = useState(false);
 
   useEffect(() => {
     if (emailId) {
@@ -365,6 +369,70 @@ export default function ConversationPage() {
       toast.error("Failed to send reply");
     } finally {
       setSendingReply(false);
+    }
+  };
+
+  const handleGenerateFollowUp = async () => {
+    if (!email) return;
+
+    setGeneratingFollowUp(true);
+    setAiError(null);
+    try {
+      const response = await fetch(`/api/emails/${email.id}/generate-reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tone: replyTone,
+          provider: aiProvider,
+          isFollowUp: true,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setFollowUpText(data.reply);
+      } else {
+        const data = await response.json();
+        if (data.error?.includes("API") || data.error?.includes("key") || data.error?.includes("quota")) {
+          setAiError(`${aiProvider} unavailable. Try switching provider.`);
+        } else {
+          toast.error(data.error || "Failed to generate follow-up");
+        }
+      }
+    } catch (error) {
+      console.error("Generate follow-up error:", error);
+      toast.error("Failed to generate follow-up");
+    } finally {
+      setGeneratingFollowUp(false);
+    }
+  };
+
+  const handleSendFollowUp = async () => {
+    if (!email || !followUpText.trim()) return;
+
+    setSendingFollowUp(true);
+    try {
+      const response = await fetch(`/api/emails/${email.id}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: followUpText }),
+      });
+
+      if (response.ok) {
+        toast.success("Follow-up sent!");
+        setFollowUpText("");
+        setTimeout(() => {
+          handleRefreshConversation();
+        }, 1500);
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to send follow-up");
+      }
+    } catch (error) {
+      console.error("Send follow-up error:", error);
+      toast.error("Failed to send follow-up");
+    } finally {
+      setSendingFollowUp(false);
     }
   };
 
@@ -713,17 +781,104 @@ export default function ConversationPage() {
             </Card>
           )}
 
-          {/* Waiting for reply message */}
+          {/* Follow-up Section - when no reply from recipient */}
           {!hasReplies && !threadLoading && threadMessages.length > 0 && (
-            <Card className="border-dashed">
-              <CardContent className="py-8 text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-muted mb-4">
-                  <Clock className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <p className="font-medium">Waiting for reply</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  You&apos;ll be able to respond once {email.recipient.name} replies
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-medium flex items-center gap-2">
+                  <Forward className="h-4 w-4" />
+                  Send a Follow-up
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  No response yet from {email.recipient.name}. Send a follow-up to get their attention.
                 </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* AI Error Alert */}
+                {aiError && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription className="flex items-center justify-between">
+                      <span>{aiError}</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setAiProvider(aiProvider === "gemini" ? "groq" : "gemini");
+                          setAiError(null);
+                        }}
+                        className="ml-2"
+                      >
+                        Switch to {aiProvider === "gemini" ? "Groq" : "Gemini"}
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* AI Provider Selector */}
+                  <Select value={aiProvider} onValueChange={(value) => { setAiProvider(value); setAiError(null); }}>
+                    <SelectTrigger className="w-32">
+                      <Bot className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="AI Provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gemini">Gemini</SelectItem>
+                      <SelectItem value="groq">Groq</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {/* Tone Selector */}
+                  <Select value={replyTone} onValueChange={setReplyTone}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Select tone" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="professional">Professional</SelectItem>
+                      <SelectItem value="friendly">Friendly</SelectItem>
+                      <SelectItem value="concise">Concise</SelectItem>
+                      <SelectItem value="urgent">Urgent</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateFollowUp}
+                    disabled={generatingFollowUp}
+                  >
+                    {generatingFollowUp ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-2 h-4 w-4" />
+                    )}
+                    Generate Follow-up
+                  </Button>
+                </div>
+
+                <div className="relative">
+                  <Textarea
+                    placeholder="Type your follow-up message here..."
+                    value={followUpText}
+                    onChange={(e) => setFollowUpText(e.target.value)}
+                    rows={5}
+                    className="resize-none"
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    onClick={handleSendFollowUp}
+                    disabled={sendingFollowUp || !followUpText.trim()}
+                  >
+                    {sendingFollowUp ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Send className="h-4 w-4 mr-2" />
+                    )}
+                    Send Follow-up
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}
