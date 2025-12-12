@@ -52,6 +52,8 @@ import {
   MousePointerClick,
   MailOpen,
   MessageSquare,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
@@ -252,12 +254,35 @@ export default function HistoryPage() {
 
       {/* Email List */}
       <Card>
-        <CardHeader>
-          <CardTitle>All Emails</CardTitle>
-          <CardDescription>
-            {filteredEmails.length} email{filteredEmails.length !== 1 ? "s" : ""}{" "}
-            {searchQuery && "matching your search"}
-          </CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+          <CardTitle className="text-base font-medium">All Emails</CardTitle>
+          {pagination && pagination.total > 0 && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">
+                {((pagination.page - 1) * pagination.limit) + 1}-{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
+              </span>
+              <div className="flex items-center">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => fetchEmails(pagination.page - 1)}
+                  disabled={pagination.page <= 1 || loading}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => fetchEmails(pagination.page + 1)}
+                  disabled={pagination.page >= pagination.totalPages || loading}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {emails.length === 0 ? (
@@ -402,33 +427,6 @@ export default function HistoryPage() {
                 })}
               </TableBody>
             </Table>
-          )}
-
-          {/* Pagination */}
-          {pagination && pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4 pt-4 border-t">
-              <p className="text-sm text-muted-foreground">
-                Page {pagination.page} of {pagination.totalPages}
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fetchEmails(pagination.page - 1)}
-                  disabled={pagination.page <= 1}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fetchEmails(pagination.page + 1)}
-                  disabled={pagination.page >= pagination.totalPages}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
           )}
         </CardContent>
       </Card>
