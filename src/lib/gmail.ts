@@ -395,6 +395,13 @@ export async function getThreadReplyCount(
   return { total: messages.length, replies };
 }
 
+// Attachment interface for reply
+export interface ReplyAttachment {
+  filename: string;
+  mimeType: string;
+  content: Buffer;
+}
+
 // Send a reply to an email thread
 export async function sendReply(
   userId: string,
@@ -402,7 +409,8 @@ export async function sendReply(
   messageId: string,
   to: string,
   subject: string,
-  body: string
+  body: string,
+  attachments?: ReplyAttachment[]
 ): Promise<{ id: string; threadId: string }> {
   const gmail = await getGmailClient(userId);
   const connection = await getGmailConnection(userId);
@@ -428,21 +436,65 @@ export async function sendReply(
   // Ensure subject has Re: prefix
   const replySubject = subject.startsWith("Re:") ? subject : `Re: ${subject}`;
 
-  const emailHeaders = [
-    `From: ${connection.connectedEmail}`,
-    `To: ${to}`,
-    `Subject: ${replySubject}`,
-    `MIME-Version: 1.0`,
-    `Content-Type: text/html; charset="UTF-8"`,
-  ];
+  let email: string;
 
-  // Only add In-Reply-To and References if we have the original Message-ID
-  if (originalMessageId) {
-    emailHeaders.push(`In-Reply-To: ${originalMessageId}`);
-    emailHeaders.push(`References: ${references}`);
+  if (attachments && attachments.length > 0) {
+    // Build multipart email with attachments
+    const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+
+    const emailHeaders = [
+      `From: ${connection.connectedEmail}`,
+      `To: ${to}`,
+      `Subject: ${replySubject}`,
+      `MIME-Version: 1.0`,
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    ];
+
+    // Add In-Reply-To and References headers
+    if (originalMessageId) {
+      emailHeaders.push(`In-Reply-To: ${originalMessageId}`);
+      emailHeaders.push(`References: ${references}`);
+    }
+
+    // Build email parts
+    let emailBody = emailHeaders.join("\r\n") + "\r\n\r\n";
+
+    // HTML body part
+    emailBody += `--${boundary}\r\n`;
+    emailBody += `Content-Type: text/html; charset="UTF-8"\r\n`;
+    emailBody += `Content-Transfer-Encoding: 7bit\r\n\r\n`;
+    emailBody += body + "\r\n\r\n";
+
+    // Attachment parts
+    for (const attachment of attachments) {
+      emailBody += `--${boundary}\r\n`;
+      emailBody += `Content-Type: ${attachment.mimeType}; name="${attachment.filename}"\r\n`;
+      emailBody += `Content-Disposition: attachment; filename="${attachment.filename}"\r\n`;
+      emailBody += `Content-Transfer-Encoding: base64\r\n\r\n`;
+      emailBody += attachment.content.toString("base64").replace(/(.{76})/g, "$1\r\n");
+      emailBody += "\r\n";
+    }
+
+    emailBody += `--${boundary}--`;
+    email = emailBody;
+  } else {
+    // Simple email without attachments
+    const emailHeaders = [
+      `From: ${connection.connectedEmail}`,
+      `To: ${to}`,
+      `Subject: ${replySubject}`,
+      `MIME-Version: 1.0`,
+      `Content-Type: text/html; charset="UTF-8"`,
+    ];
+
+    // Only add In-Reply-To and References if we have the original Message-ID
+    if (originalMessageId) {
+      emailHeaders.push(`In-Reply-To: ${originalMessageId}`);
+      emailHeaders.push(`References: ${references}`);
+    }
+
+    email = [...emailHeaders, "", body].join("\r\n");
   }
-
-  const email = [...emailHeaders, "", body].join("\r\n");
 
   const encodedEmail = Buffer.from(email)
     .toString("base64")

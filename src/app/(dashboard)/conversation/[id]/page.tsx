@@ -29,8 +29,26 @@ import {
   Reply,
   AlertTriangle,
   Bot,
+  Eye,
+  MousePointerClick,
+  Edit2,
+  X,
+  Save,
+  RefreshCw,
+  Paperclip,
+  FileText,
+  Trash2,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import Link from "next/link";
 
@@ -63,6 +81,26 @@ interface ThreadMessage {
   isFromMe: boolean;
 }
 
+interface TrackingStats {
+  emailId: string;
+  trackingId: string | null;
+  isPro: boolean;
+  opens: {
+    total: number;
+    unique: number;
+  };
+  clicks: {
+    total: number;
+    unique: number;
+  };
+}
+
+interface AttachmentFile {
+  file: File;
+  name: string;
+  size: number;
+}
+
 export default function ConversationPage() {
   const params = useParams();
   const router = useRouter();
@@ -79,11 +117,20 @@ export default function ConversationPage() {
   const [replyTone, setReplyTone] = useState("professional");
   const [aiProvider, setAiProvider] = useState("gemini");
   const [aiError, setAiError] = useState<string | null>(null);
+  const [trackingStats, setTrackingStats] = useState<TrackingStats | null>(null);
+  const [trackingLoading, setTrackingLoading] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editSubject, setEditSubject] = useState("");
+  const [editBody, setEditBody] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (emailId) {
       fetchEmail();
       fetchThread();
+      fetchTrackingStats();
     }
   }, [emailId]);
 
@@ -123,6 +170,107 @@ export default function ConversationPage() {
     } finally {
       setThreadLoading(false);
     }
+  };
+
+  const fetchTrackingStats = async () => {
+    setTrackingLoading(true);
+    try {
+      const response = await fetch(`/api/emails/${emailId}/tracking`);
+      if (response.ok) {
+        const data = await response.json();
+        setTrackingStats(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch tracking stats:", error);
+    } finally {
+      setTrackingLoading(false);
+    }
+  };
+
+  const handleRefreshConversation = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([fetchThread(), fetchTrackingStats()]);
+      toast.success("Conversation refreshed");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleOpenEditDialog = () => {
+    if (email) {
+      setEditSubject(email.subject);
+      setEditBody(email.body);
+      setEditDialogOpen(true);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!email || email.status !== "DRAFT") return;
+
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/emails/${email.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject: editSubject,
+          body: editBody
+        }),
+      });
+
+      if (response.ok) {
+        const updatedEmail = await response.json();
+        setEmail(updatedEmail);
+        setEditDialogOpen(false);
+        toast.success("Draft saved successfully");
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to save draft");
+      }
+    } catch (error) {
+      console.error("Save draft error:", error);
+      toast.error("Failed to save draft");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const maxSize = 5 * 1024 * 1024; // 5MB limit
+    const newAttachments: AttachmentFile[] = [];
+
+    Array.from(files).forEach((file) => {
+      if (file.size > maxSize) {
+        toast.error(`${file.name} is too large. Max size is 5MB`);
+        return;
+      }
+      if (attachments.length + newAttachments.length >= 3) {
+        toast.error("Maximum 3 attachments allowed");
+        return;
+      }
+      newAttachments.push({
+        file,
+        name: file.name,
+        size: file.size,
+      });
+    });
+
+    setAttachments([...attachments, ...newAttachments]);
+    e.target.value = ""; // Reset input
+  };
+
+  const handleRemoveAttachment = (index: number) => {
+    setAttachments(attachments.filter((_, i) => i !== index));
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
   };
 
   const handleGenerateReply = async () => {
@@ -169,16 +317,36 @@ export default function ConversationPage() {
 
     setSendingReply(true);
     try {
-      const response = await fetch(`/api/emails/${email.id}/reply`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: replyText }),
-      });
+      let response;
+
+      // If there are attachments, use FormData
+      if (attachments.length > 0) {
+        const formData = new FormData();
+        formData.append("body", replyText);
+        attachments.forEach((att) => {
+          formData.append("attachments", att.file);
+        });
+
+        response = await fetch(`/api/emails/${email.id}/reply`, {
+          method: "POST",
+          body: formData,
+        });
+      } else {
+        response = await fetch(`/api/emails/${email.id}/reply`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ body: replyText }),
+        });
+      }
 
       if (response.ok) {
         toast.success("Reply sent!");
         setReplyText("");
-        fetchThread();
+        setAttachments([]);
+        // Refresh conversation after a short delay to allow Gmail to process
+        setTimeout(() => {
+          handleRefreshConversation();
+        }, 1500);
       } else {
         const data = await response.json();
         toast.error(data.error || "Failed to send reply");
@@ -276,6 +444,22 @@ export default function ConversationPage() {
           <p className="text-sm text-muted-foreground">
             Conversation with {email.recipient.name}
           </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {email.status === "DRAFT" && (
+            <Button variant="outline" size="sm" onClick={handleOpenEditDialog}>
+              <Edit2 className="h-4 w-4 mr-2" />
+              Edit Draft
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRefreshConversation}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+          </Button>
         </div>
       </div>
 
@@ -454,22 +638,66 @@ export default function ConversationPage() {
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
                     rows={5}
-                    className="resize-none pr-24"
+                    className="resize-none"
                   />
+                </div>
+
+                {/* Attachments Section */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label
+                      htmlFor="attachment-input"
+                      className="cursor-pointer inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <Paperclip className="h-4 w-4" />
+                      Add attachments ({attachments.length}/3)
+                    </Label>
+                    <input
+                      id="attachment-input"
+                      type="file"
+                      multiple
+                      onChange={handleFileSelect}
+                      className="hidden"
+                      accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.gif"
+                    />
+                  </div>
+
+                  {attachments.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {attachments.map((att, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-2 bg-muted rounded-lg px-3 py-1.5 text-sm"
+                        >
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span className="max-w-[150px] truncate">{att.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            ({formatFileSize(att.size)})
+                          </span>
+                          <button
+                            onClick={() => handleRemoveAttachment(index)}
+                            className="text-muted-foreground hover:text-destructive transition-colors"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end">
                   <Button
                     onClick={handleSendReply}
                     disabled={sendingReply || !replyText.trim()}
-                    size="sm"
-                    className="absolute bottom-3 right-3"
                   >
                     {sendingReply ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
                     ) : (
-                      <>
-                        <Send className="h-4 w-4 mr-1" />
-                        Send
-                      </>
+                      <Send className="h-4 w-4 mr-2" />
                     )}
+                    Send Reply
+                    {attachments.length > 0 && ` (${attachments.length} attachment${attachments.length > 1 ? "s" : ""})`}
                   </Button>
                 </div>
               </CardContent>
@@ -574,8 +802,113 @@ export default function ConversationPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Tracking Stats Card */}
+          {email.status === "SENT" && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-medium">Email Tracking</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {trackingLoading ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-16 w-full" />
+                    <Skeleton className="h-16 w-full" />
+                  </div>
+                ) : trackingStats ? (
+                  <>
+                    {/* Opens Stats */}
+                    <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                      <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                        <Eye className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Opens</span>
+                          <span className="text-lg font-semibold">{trackingStats.opens.total}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {trackingStats.opens.unique} unique
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Clicks Stats */}
+                    <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                      <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                        <MousePointerClick className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Link Clicks</span>
+                          <span className="text-lg font-semibold">{trackingStats.clicks.total}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {trackingStats.clicks.unique} unique
+                        </p>
+                      </div>
+                    </div>
+
+                    {!trackingStats.trackingId && (
+                      <p className="text-xs text-muted-foreground text-center">
+                        Tracking not enabled for this email
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-2">
+                    Unable to load tracking stats
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
+
+      {/* Edit Draft Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Draft Email</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-subject">Subject</Label>
+              <Input
+                id="edit-subject"
+                value={editSubject}
+                onChange={(e) => setEditSubject(e.target.value)}
+                placeholder="Email subject"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-body">Body</Label>
+              <Textarea
+                id="edit-body"
+                value={editBody}
+                onChange={(e) => setEditBody(e.target.value)}
+                placeholder="Email body"
+                rows={12}
+                className="resize-none"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={saving}>
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

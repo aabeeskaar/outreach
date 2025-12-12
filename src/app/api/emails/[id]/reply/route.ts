@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { sendReply, getThreadMessages } from "@/lib/gmail";
+import { sendReply, getThreadMessages, ReplyAttachment } from "@/lib/gmail";
 
 export async function POST(
   request: NextRequest,
@@ -15,7 +15,31 @@ export async function POST(
     }
 
     const { id } = await params;
-    const { body } = await request.json();
+
+    let body: string;
+    let attachments: ReplyAttachment[] = [];
+
+    const contentType = request.headers.get("content-type") || "";
+
+    if (contentType.includes("multipart/form-data")) {
+      // Handle FormData with attachments
+      const formData = await request.formData();
+      body = formData.get("body") as string;
+
+      const files = formData.getAll("attachments") as File[];
+      for (const file of files) {
+        const buffer = Buffer.from(await file.arrayBuffer());
+        attachments.push({
+          filename: file.name,
+          mimeType: file.type || "application/octet-stream",
+          content: buffer,
+        });
+      }
+    } else {
+      // Handle JSON request
+      const json = await request.json();
+      body = json.body;
+    }
 
     if (!body || typeof body !== "string" || body.trim().length === 0) {
       return NextResponse.json(
@@ -79,7 +103,8 @@ export async function POST(
       latestMessage.id,
       replyToEmail,
       email.subject,
-      htmlBody
+      htmlBody,
+      attachments.length > 0 ? attachments : undefined
     );
 
     return NextResponse.json({
