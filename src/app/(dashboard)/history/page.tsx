@@ -387,10 +387,10 @@ export default function HistoryPage() {
                             <span className="text-sm font-semibold">{email.replyStats.total}</span>
                             <div className="flex flex-col text-sm leading-tight">
                               {email.replyStats.fromMe > 0 && (
-                                <span className="text-blue-500" title={`${email.replyStats.fromMe} sent by you`}>➡</span>
+                                <span className="text-purple-500" title={`${email.replyStats.fromMe} sent by you`}>➡</span>
                               )}
                               {email.replyStats.fromRecipient > 0 && (
-                                <span className="text-green-500" title={`${email.replyStats.fromRecipient} from recipient`}>⬅</span>
+                                <span className="text-emerald-500" title={`${email.replyStats.fromRecipient} from recipient`}>⬅</span>
                               )}
                             </div>
                           </div>
