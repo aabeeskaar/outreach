@@ -253,7 +253,7 @@ export default function HistoryPage() {
       </div>
 
       {/* Email List */}
-      <Card className="py-1">
+      <Card className="py-1 gap-1">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle className="text-base font-medium">All Emails</CardTitle>
           {pagination && pagination.total > 0 && (
