@@ -232,50 +232,22 @@ export default function HistoryPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Mail className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{pagination?.total || 0}</p>
-                <p className="text-sm text-muted-foreground">Total Emails</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-500/10 rounded-lg">
-                <CheckCircle2 className="h-5 w-5 text-green-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {emails.filter((e) => e.status === "SENT").length}
-                </p>
-                <p className="text-sm text-muted-foreground">Sent</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-yellow-500/10 rounded-lg">
-                <Clock className="h-5 w-5 text-yellow-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {emails.filter((e) => e.status === "DRAFT").length}
-                </p>
-                <p className="text-sm text-muted-foreground">Drafts</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="flex flex-wrap gap-3">
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-lg">
+          <Mail className="h-4 w-4 text-primary" />
+          <span className="text-sm font-medium">{pagination?.total || 0}</span>
+          <span className="text-xs text-muted-foreground">Total</span>
+        </div>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-lg">
+          <CheckCircle2 className="h-4 w-4 text-green-500" />
+          <span className="text-sm font-medium">{emails.filter((e) => e.status === "SENT").length}</span>
+          <span className="text-xs text-muted-foreground">Sent</span>
+        </div>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-lg">
+          <Clock className="h-4 w-4 text-yellow-500" />
+          <span className="text-sm font-medium">{emails.filter((e) => e.status === "DRAFT").length}</span>
+          <span className="text-xs text-muted-foreground">Drafts</span>
+        </div>
       </div>
 
       {/* Email List */}
@@ -568,14 +540,10 @@ function HistorySkeleton() {
         <Skeleton className="h-10 w-64" />
         <Skeleton className="h-10 w-40" />
       </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        {[...Array(3)].map((_, i) => (
-          <Card key={i}>
-            <CardContent className="pt-6">
-              <Skeleton className="h-16 w-full" />
-            </CardContent>
-          </Card>
-        ))}
+      <div className="flex gap-3">
+        <Skeleton className="h-8 w-24 rounded-lg" />
+        <Skeleton className="h-8 w-20 rounded-lg" />
+        <Skeleton className="h-8 w-24 rounded-lg" />
       </div>
       <Card>
         <CardHeader>
