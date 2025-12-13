@@ -92,6 +92,19 @@ function ComposePageContent() {
   } | null>(null);
   const [fileAttachments, setFileAttachments] = useState<AttachmentFile[]>([]);
 
+  // Convert plain text to HTML for rich text editor
+  const plainTextToHtml = (text: string): string => {
+    if (!text) return "";
+    // If already HTML, return as-is
+    if (text.trim().startsWith("<")) return text;
+    // Convert paragraphs (double newlines) to <p> tags
+    // and single newlines to <br>
+    return text
+      .split(/\n\n+/)
+      .map((paragraph) => `<p>${paragraph.replace(/\n/g, "<br>")}</p>`)
+      .join("");
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -167,7 +180,8 @@ function ComposePageContent() {
       if (response.ok) {
         const data = await response.json();
         setSubject(data.subject);
-        setBody(data.body);
+        // Convert plain text to HTML for rich text editor
+        setBody(plainTextToHtml(data.body));
         toast.success("Email generated!");
         // Refresh subscription status
         const subRes = await fetch("/api/subscription");
