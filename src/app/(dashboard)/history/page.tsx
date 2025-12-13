@@ -525,11 +525,17 @@ export default function HistoryPage() {
               </div>
 
               <div className="border-t pt-4">
-                <div className="prose prose-sm max-w-none dark:prose-invert bg-muted/50 p-4 rounded-lg">
-                  {selectedEmail.body.split("\n\n").map((paragraph, i) => (
-                    <p key={i}>{paragraph}</p>
-                  ))}
-                </div>
+                <div
+                  className="prose prose-sm max-w-none dark:prose-invert bg-muted/50 p-4 rounded-lg"
+                  dangerouslySetInnerHTML={{
+                    __html: selectedEmail.body.trim().startsWith("<")
+                      ? selectedEmail.body
+                      : selectedEmail.body
+                          .split("\n\n")
+                          .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
+                          .join("")
+                  }}
+                />
               </div>
             </div>
           )}
