@@ -60,6 +60,7 @@ export async function POST(
       mimeType: string;
     }> = [];
 
+    // Get document attachments (profile documents)
     if (email.attachedDocuments.length > 0) {
       const documents = await prisma.document.findMany({
         where: {
@@ -68,7 +69,7 @@ export async function POST(
         },
       });
 
-      attachments = await Promise.all(
+      const docAttachments = await Promise.all(
         documents.map(async (doc) => {
           const filePath = path.join(UPLOAD_DIR, doc.filePath);
           const content = await readFile(filePath);
@@ -79,13 +80,42 @@ export async function POST(
           };
         })
       );
+      attachments.push(...docAttachments);
     }
 
-    // Convert body to HTML for better formatting
-    const htmlBody = email.body
-      .split("\n\n")
-      .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
-      .join("");
+    // Get email file attachments
+    const emailAttachments = await prisma.emailAttachment.findMany({
+      where: {
+        emailId: email.id,
+        userId: session.user.id,
+      },
+    });
+
+    if (emailAttachments.length > 0) {
+      const fileAttachments = await Promise.all(
+        emailAttachments.map(async (att) => {
+          const filePath = path.join(UPLOAD_DIR, att.filePath);
+          const content = await readFile(filePath);
+          return {
+            filename: att.name,
+            content,
+            mimeType: att.mimeType,
+          };
+        })
+      );
+      attachments.push(...fileAttachments);
+    }
+
+    // Check if body is already HTML (from rich text editor)
+    const isHtml = email.body.trim().startsWith("<");
+
+    // Convert body to HTML for better formatting if it's plain text
+    const htmlBody = isHtml
+      ? email.body
+      : email.body
+          .split("\n\n")
+          .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
+          .join("");
 
     // Generate tracking ID for this email
     const trackingId = generateTrackingId();

@@ -40,7 +40,10 @@ import {
   Eye,
   Bot,
   Crown,
+  Paperclip,
 } from "lucide-react";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { FileAttachment, AttachmentFile } from "@/components/ui/file-attachment";
 
 interface Recipient {
   id: string;
@@ -87,6 +90,7 @@ function ComposePageContent() {
     freeEmailsUsed: number;
     freeEmailsRemaining: number;
   } | null>(null);
+  const [fileAttachments, setFileAttachments] = useState<AttachmentFile[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -198,6 +202,11 @@ function ComposePageContent() {
       const url = emailId ? `/api/emails/${emailId}` : "/api/emails";
       const method = emailId ? "PUT" : "POST";
 
+      // Get attachment IDs (only those that finished uploading)
+      const attachmentIds = fileAttachments
+        .filter((a) => !a.isUploading && !a.error)
+        .map((a) => a.id);
+
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -208,6 +217,7 @@ function ComposePageContent() {
           tone,
           purpose,
           attachedDocuments: selectedDocs,
+          attachmentIds,
         }),
       });
 
@@ -561,13 +571,25 @@ function ComposePageContent() {
 
               <div className="space-y-2">
                 <Label htmlFor="body">Body</Label>
-                <Textarea
-                  id="body"
+                <RichTextEditor
                   value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  placeholder="Email body content..."
-                  rows={15}
-                  className="font-mono text-sm"
+                  onChange={setBody}
+                  placeholder="Write your email content here..."
+                  className="min-h-[300px]"
+                />
+              </div>
+
+              {/* File Attachments */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Paperclip className="h-4 w-4" />
+                  Attachments
+                </Label>
+                <FileAttachment
+                  attachments={fileAttachments}
+                  onAttachmentsChange={setFileAttachments}
+                  maxFileSize={10 * 1024 * 1024}
+                  maxFiles={10}
                 />
               </div>
 
@@ -679,13 +701,12 @@ function ComposePageContent() {
               <span className="font-medium">{subject}</span>
             </div>
             <div className="border-t pt-4">
-              <div className="prose prose-sm max-w-none dark:prose-invert">
-                {body.split("\n\n").map((paragraph, i) => (
-                  <p key={i}>{paragraph}</p>
-                ))}
-              </div>
+              <div
+                className="prose prose-sm max-w-none dark:prose-invert"
+                dangerouslySetInnerHTML={{ __html: body }}
+              />
             </div>
-            {selectedDocs.length > 0 && (
+            {(selectedDocs.length > 0 || fileAttachments.length > 0) && (
               <div className="border-t pt-4">
                 <p className="text-sm text-muted-foreground mb-2">Attachments:</p>
                 <div className="flex flex-wrap gap-2">
@@ -695,6 +716,14 @@ function ComposePageContent() {
                       <Badge key={doc.id} variant="secondary">
                         <FileText className="mr-1 h-3 w-3" />
                         {doc.name}
+                      </Badge>
+                    ))}
+                  {fileAttachments
+                    .filter((a) => !a.isUploading && !a.error)
+                    .map((attachment) => (
+                      <Badge key={attachment.id} variant="secondary">
+                        <Paperclip className="mr-1 h-3 w-3" />
+                        {attachment.name}
                       </Badge>
                     ))}
                 </div>

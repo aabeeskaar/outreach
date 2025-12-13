@@ -166,29 +166,45 @@ model Recipient {
 }
 
 model GeneratedEmail {
-  id                String       @id @default(uuid())
+  id                String            @id @default(uuid())
   userId            String
   recipientId       String
   subject           String
   body              String
-  tone              EmailTone    @default(FORMAL)
-  purpose           EmailPurpose @default(OTHER)
-  attachedDocuments String[]     @default([])
-  status            EmailStatus  @default(DRAFT)
+  tone              EmailTone         @default(FORMAL)
+  purpose           EmailPurpose      @default(OTHER)
+  attachedDocuments String[]          @default([])
+  status            EmailStatus       @default(DRAFT)
   sentAt            DateTime?
   errorMessage      String?
-  trackingId        String?      @unique
-  gmailMessageId    String?      // Gmail message ID for tracking replies
-  gmailThreadId     String?      // Gmail thread ID for conversation tracking
-  conversationRead  Boolean      @default(true) // Track if user has seen latest replies
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  trackingId        String?           @unique
+  gmailMessageId    String?           // Gmail message ID for tracking replies
+  gmailThreadId     String?           // Gmail thread ID for conversation tracking
+  conversationRead  Boolean           @default(true) // Track if user has seen latest replies
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
   emailOpens        EmailOpen[]
-  recipient         Recipient    @relation(fields: [recipientId], references: [id], onDelete: Cascade)
-  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipient         Recipient         @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   linkClicks        LinkClick[]
+  emailAttachments  EmailAttachment[]
 
   @@index([gmailThreadId])
+}
+
+model EmailAttachment {
+  id        String          @id @default(uuid())
+  emailId   String?
+  userId    String
+  name      String
+  filePath  String
+  mimeType  String
+  size      Int
+  createdAt DateTime        @default(now())
+  email     GeneratedEmail? @relation(fields: [emailId], references: [id], onDelete: Cascade)
+
+  @@index([emailId])
+  @@index([userId])
 }
 
 model EmailOpen {

@@ -90,6 +90,20 @@ export async function PUT(
       },
     });
 
+    // Link new file attachments to this email
+    if (data.attachmentIds && data.attachmentIds.length > 0) {
+      await prisma.emailAttachment.updateMany({
+        where: {
+          id: { in: data.attachmentIds },
+          userId: session.user.id,
+          emailId: null, // Only update unlinked attachments
+        },
+        data: {
+          emailId: email.id,
+        },
+      });
+    }
+
     return NextResponse.json(email);
   } catch (error) {
     console.error("Update email error:", error);
